@@ -68,7 +68,7 @@ backend/src/
 | Código atual | Destino planejado | Situação |
 |---|---|---|
 | `auth/` | `auth/` | Preservar inicialmente |
-| `users/` | `cadastro/usuarios/` | A migrar |
+| `users/` | `cadastro/usuarios/` | Em migração |
 | `customers/` | `cadastro/clientes/` | A migrar; preservar regras de crédito |
 | `parties/` | `cadastro/clientes/` e `cadastro/fornecedores/` | Separar responsabilidades |
 | `products/` | `cadastro/produtos/` | A migrar; preservar dados fiscais |
@@ -156,7 +156,7 @@ Essas alterações devem ser transacionais para evitar estoque atualizado sem o 
 - Ajustes.
 - Avarias/perdas.
 - Inventário.
-- Histórico e rastreabilidade da origem da entrada.
+- Histórico e rastreabilidade da origem das entradas.
 
 ### Financeiro
 
@@ -182,22 +182,19 @@ Essas alterações devem ser transacionais para evitar estoque atualizado sem o 
 - [x] Criar estrutura de diretórios-alvo sem alterar o código funcional existente.
 - [x] Registrar a arquitetura e o mapeamento neste documento.
 - [x] Criar pastas-alvo com `.gitkeep` para manter a estrutura no Git.
+- [x] Preparar commit de continuidade para disparar o CI da branch.
 - [ ] Documentar dependências entre módulos.
-- [x] Não alterar comportamento funcional.
 - [ ] Rodar typecheck.
-- [ ] Rodar CI.
-
-**Última ação realizada:** criação da estrutura-alvo em `backend/src/` na branch `refactor/backend-modular`. Nenhum módulo antigo foi apagado e nenhum import funcional foi alterado nesta etapa.
-
-**Próxima ação:** mapear dependências e iniciar o Checkpoint 2, migrando usuários para `cadastro/usuarios/` sem modificar `auth/`.
+- [ ] CI verde.
 
 ### Checkpoint 2 — Auth e usuários
 
-- [ ] Migrar `users/` para `cadastro/usuarios/`.
-- [ ] Manter `auth/` estável.
-- [ ] Ajustar imports.
+- [x] Criar `cadastro/usuarios/routes.ts` reaproveitando as regras existentes.
+- [x] Alterar `app.ts` para usar o novo caminho.
+- [ ] Confirmar typecheck.
 - [ ] Reexecutar testes do Módulo 1.
-- [ ] CI verde.
+- [ ] Confirmar CI verde.
+- [ ] Somente após o verde, apagar `users/` antigo.
 
 ### Checkpoint 3 — Clientes e fornecedores
 
@@ -299,9 +296,9 @@ Antes de iniciar qualquer nova alteração:
 
 **Branch:** `refactor/backend-modular`
 
-**Situação:** estrutura modular criada de forma não invasiva; código original preservado; nenhum módulo funcional antigo foi removido.
+**Situação:** estrutura modular criada; `cadastro/usuarios/routes.ts` criado e `app.ts` atualizado para utilizá-lo; código antigo de `users/` ainda preservado até validação do CI.
 
-**Próxima ação:** Checkpoint 2 — migrar `users/` para `cadastro/usuarios/`, preservando `auth/` e executando novamente o Módulo 1 antes de avançar.
+**Próxima ação:** validar a migração de usuários com typecheck e CI. Somente após o verde, remover `backend/src/users/`.
 
 ## Regra para conclusão
 
