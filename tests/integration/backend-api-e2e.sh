@@ -12,6 +12,7 @@ SUPPLIER_DOC="E2E-${RUN_ID:0:20}"
 
 api() { curl -sS --fail-with-body "$@"; }
 json() { jq -r "$1"; }
+num() { awk '{print $1+0}' <<< "$1"; }
 
 echo "1) Health check"
 api "$BASE_URL/health" | tee /tmp/erp-health.json
@@ -59,11 +60,11 @@ echo "7) Confirm purchase and enter stock"
 api "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"salePriceUpdates":[]}' "$BASE_URL/purchases/$PURCHASE_ID/confirm" > /tmp/erp-purchase-confirm.json
 cat /tmp/erp-purchase-confirm.json
 jq -e '.purchase.status == "CONFIRMED"' /tmp/erp-purchase-confirm.json >/dev/null
-STOCK_AFTER_PURCHASE=$(psql "$DATABASE_URL" -tAc "SELECT quantity FROM stock WHERE product_id = $PRODUCT_ID;")
-COST_AFTER_PURCHASE=$(psql "$DATABASE_URL" -tAc "SELECT cost FROM products WHERE id = $PRODUCT_ID;")
-[[ "$STOCK_AFTER_PURCHASE" == "10.00" || "$STOCK_AFTER_PURCHASE" == "10" ]]
-[[ "$COST_AFTER_PURCHASE" == "8.00" || "$COST_AFTER_PURCHASE" == "8" ]]
-PAYABLE_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM financial_entries WHERE purchase_id = $PURCHASE_ID AND type = 'PAYABLE';")
+STOCK_AFTER_PURCHASE=$(psql "$DATABASE_URL" -tAc "SELECT quantity FROM stock WHERE product_id = $PRODUCT_ID;" | xargs)
+COST_AFTER_PURCHASE=$(psql "$DATABASE_URL" -tAc "SELECT cost FROM products WHERE id = $PRODUCT_ID;" | xargs)
+[[ "$(num "$STOCK_AFTER_PURCHASE")" == "10" ]]
+[[ "$(num "$COST_AFTER_PURCHASE")" == "8" ]]
+PAYABLE_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM financial_entries WHERE purchase_id = $PURCHASE_ID AND type = 'PAYABLE';" | xargs)
 test "$PAYABLE_COUNT" = "1"
 
 echo '8) Open cash with R$100'
@@ -77,31 +78,31 @@ api "${AUTH[@]}" -H 'Content-Type: application/json' -d "{\"cashSessionId\":$CAS
 cat /tmp/erp-sale.json
 SALE_ID=$(json '.sale.id' < /tmp/erp-sale.json)
 test "$SALE_ID" != "null"
-STOCK_AFTER_SALE=$(psql "$DATABASE_URL" -tAc "SELECT quantity FROM stock WHERE product_id = $PRODUCT_ID;")
-[[ "$STOCK_AFTER_SALE" == "4.00" || "$STOCK_AFTER_SALE" == "4" ]]
-SALE_EVENT_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM cash_events WHERE cash_session_id = $CASH_SESSION_ID AND sale_id = $SALE_ID AND type = 'SALE_PAYMENT';")
+STOCK_AFTER_SALE=$(psql "$DATABASE_URL" -tAc "SELECT quantity FROM stock WHERE product_id = $PRODUCT_ID;" | xargs)
+[[ "$(num "$STOCK_AFTER_SALE")" == "4" ]]
+SALE_EVENT_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM cash_events WHERE cash_session_id = $CASH_SESSION_ID AND sale_id = $SALE_ID AND type = 'SALE_PAYMENT';" | xargs)
 test "$SALE_EVENT_COUNT" = "1"
 
 echo '10) Cancel sale as supervisor/admin and restore stock/cash'
 api "${AUTH[@]}" -X POST "$BASE_URL/sales/$SALE_ID/cancel" > /tmp/erp-sale-cancel.json
 cat /tmp/erp-sale-cancel.json
 jq -e '.sale.status == "CANCELLED"' /tmp/erp-sale-cancel.json >/dev/null
-STOCK_AFTER_CANCEL=$(psql "$DATABASE_URL" -tAc "SELECT quantity FROM stock WHERE product_id = $PRODUCT_ID;")
-[[ "$STOCK_AFTER_CANCEL" == "10.00" || "$STOCK_AFTER_CANCEL" == "10" ]]
-CANCELLATION_EVENT_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM cash_events WHERE cash_session_id = $CASH_SESSION_ID AND sale_id = $SALE_ID AND type = 'CANCELLATION';")
+STOCK_AFTER_CANCEL=$(psql "$DATABASE_URL" -tAc "SELECT quantity FROM stock WHERE product_id = $PRODUCT_ID;" | xargs)
+[[ "$(num "$STOCK_AFTER_CANCEL")" == "10" ]]
+CANCELLATION_EVENT_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM cash_events WHERE cash_session_id = $CASH_SESSION_ID AND sale_id = $SALE_ID AND type = 'CANCELLATION';" | xargs)
 test "$CANCELLATION_EVENT_COUNT" = "1"
 
 echo '11) Close cash at opening amount R$100'
 api "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"closingAmount":100}' "$BASE_URL/cash-sessions/$CASH_SESSION_ID/close" > /tmp/erp-cash-close.json
 cat /tmp/erp-cash-close.json
 jq -e '.report.totals.expectedCash == 100 or (.report.totals.expectedCash | tonumber) == 100' /tmp/erp-cash-close.json >/dev/null
-CASH_STATUS=$(psql "$DATABASE_URL" -tAc "SELECT status FROM cash_sessions WHERE id = $CASH_SESSION_ID;")
+CASH_STATUS=$(psql "$DATABASE_URL" -tAc "SELECT status FROM cash_sessions WHERE id = $CASH_SESSION_ID;" | xargs)
 test "$CASH_STATUS" = "CLOSED"
 
 echo "12) Final financial/stock invariants"
-PAYABLE_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM financial_entries WHERE purchase_id = $PURCHASE_ID AND type = 'PAYABLE';")
+PAYABLE_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM financial_entries WHERE purchase_id = $PURCHASE_ID AND type = 'PAYABLE';" | xargs)
 test "$PAYABLE_COUNT" = "1"
-RECEIVABLE_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM financial_entries WHERE sale_id = $SALE_ID AND type = 'RECEIVABLE';")
+RECEIVABLE_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM financial_entries WHERE sale_id = $SALE_ID AND type = 'RECEIVABLE';" | xargs)
 test "$RECEIVABLE_COUNT" = "0"
 
 printf '\nERP real API integration battery PASSED.\n'
