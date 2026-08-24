@@ -146,3 +146,6 @@ jobs:
       - name: Real ERP API integration battery
         shell: bash
         run: bash tests/integration/backend-api-e2e.sh
+      - name: Comprehensive backend API battery
+        shell: bash
+        run: bash tests/integration/backend-api-comprehensive.sh
