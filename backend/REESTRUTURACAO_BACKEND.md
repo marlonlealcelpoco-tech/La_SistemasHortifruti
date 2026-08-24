@@ -179,11 +179,17 @@ Essas alterações devem ser transacionais para evitar estoque atualizado sem o 
 ### Checkpoint 1 — Inventário e estrutura
 
 - [x] Mapear módulos atuais principais.
-- [ ] Criar estrutura de diretórios-alvo.
+- [x] Criar estrutura de diretórios-alvo sem alterar o código funcional existente.
+- [x] Registrar a arquitetura e o mapeamento neste documento.
+- [x] Criar pastas-alvo com `.gitkeep` para manter a estrutura no Git.
 - [ ] Documentar dependências entre módulos.
-- [ ] Não alterar comportamento funcional.
+- [x] Não alterar comportamento funcional.
 - [ ] Rodar typecheck.
 - [ ] Rodar CI.
+
+**Última ação realizada:** criação da estrutura-alvo em `backend/src/` na branch `refactor/backend-modular`. Nenhum módulo antigo foi apagado e nenhum import funcional foi alterado nesta etapa.
+
+**Próxima ação:** mapear dependências e iniciar o Checkpoint 2, migrando usuários para `cadastro/usuarios/` sem modificar `auth/`.
 
 ### Checkpoint 2 — Auth e usuários
 
@@ -293,9 +299,9 @@ Antes de iniciar qualquer nova alteração:
 
 **Branch:** `refactor/backend-modular`
 
-**Situação:** reestruturação iniciada; código original preservado; inventário inicial realizado.
+**Situação:** estrutura modular criada de forma não invasiva; código original preservado; nenhum módulo funcional antigo foi removido.
 
-**Próxima ação:** Checkpoint 1 — criar a estrutura de diretórios-alvo e preparar a migração sem alterar as regras de negócio.
+**Próxima ação:** Checkpoint 2 — migrar `users/` para `cadastro/usuarios/`, preservando `auth/` e executando novamente o Módulo 1 antes de avançar.
 
 ## Regra para conclusão
 
