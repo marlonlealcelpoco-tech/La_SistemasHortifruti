@@ -15,7 +15,7 @@ login_admin() {
   local token
   token=$(jq -r '.token' "$out")
   test -n "$token" && test "$token" != "null"
-  AUTH="Bearer $token"
+  AUTH="$token"
 }
 
 request_status() {
@@ -111,11 +111,9 @@ echo "10) FORNECEDOR — validações"
 expect_400 -X POST -H "Authorization: Bearer $AUTH" -H 'Content-Type: application/json' \
   -d '{"name":"Fornecedor validação","email":"email-invalido"}' "$BASE_URL/suppliers"
 
- echo "11) PRODUTO — criação comercial + fiscal + estoque"
+echo "11) PRODUTO — criação comercial + fiscal + estoque"
 PRODUCT_CODE="FUNC-P-${KEY}"
-PRODUCT_JSON='{\"code\":\"PRODUCT_CODE_PLACEHOLDER\",\"name\":\"Produto Funcional KEY_PLACEHOLDER\",\"description\":\"Produto completo para teste\",\"unit\":\"UN\",\"cost\":8.5,\"salePrice\":12.75,\"profitMarginPct\":50,\"ncm\":\"07020000\",\"cest\":\"1700100\",\"cfop\":\"5102\",\"taxCodeType\":\"CST\",\"taxCode\":\"00\",\"origin\":0,\"gtin\":\"7891234567890\",\"gtinTrib\":\"7891234567890\",\"taxUnit\":\"UN\",\"icmsRate\":18,\"pisCst\":\"01\",\"pisRate\":1.65,\"cofinsCst\":\"01\",\"cofinsRate\":7.6}'
-PRODUCT_JSON=${PRODUCT_JSON/PRODUCT_CODE_PLACEHOLDER/$PRODUCT_CODE}
-PRODUCT_JSON=${PRODUCT_JSON/KEY_PLACEHOLDER/$KEY}
+PRODUCT_JSON="{\"code\":\"$PRODUCT_CODE\",\"name\":\"Produto Funcional $KEY\",\"description\":\"Produto completo para teste\",\"unit\":\"UN\",\"cost\":8.5,\"salePrice\":12.75,\"profitMarginPct\":50,\"ncm\":\"07020000\",\"cest\":\"1700100\",\"cfop\":\"5102\",\"taxCodeType\":\"CST\",\"taxCode\":\"00\",\"origin\":0,\"gtin\":\"7891234567890\",\"gtinTrib\":\"7891234567890\",\"taxUnit\":\"UN\",\"icmsRate\":18,\"pisCst\":\"01\",\"pisRate\":1.65,\"cofinsCst\":\"01\",\"cofinsRate\":7.6}"
 request_status 201 /tmp/cad-functional-product.json \
   -X POST -H "Authorization: Bearer $AUTH" -H 'Content-Type: application/json' \
   -d "$PRODUCT_JSON" "$BASE_URL/products"
@@ -132,13 +130,7 @@ for term in "$PRODUCT_CODE" "Produto%20Funcional"; do
 done
 
 echo "13) PRODUTO — edição comercial e fiscal"
-PRODUCT_JSON=${PRODUCT_JSON/8.5/9.25}
-PRODUCT_JSON=${PRODUCT_JSON/12.75/14.50}
-PRODUCT_JSON=${PRODUCT_JSON/07020000/08081000}
-PRODUCT_JSON=${PRODUCT_JSON/1700100/1700200}
-PRODUCT_JSON=${PRODUCT_JSON/5102/5101}
-PRODUCT_JSON=${PRODUCT_JSON/7891234567890/7891234567891}
-PRODUCT_JSON=${PRODUCT_JSON/8.5/9.25}
+PRODUCT_JSON="{\"code\":\"$PRODUCT_CODE\",\"name\":\"Produto Funcional $KEY\",\"description\":\"Produto completo para teste atualizado\",\"unit\":\"UN\",\"cost\":9.25,\"salePrice\":14.50,\"profitMarginPct\":56.76,\"ncm\":\"08081000\",\"cest\":\"1700200\",\"cfop\":\"5101\",\"taxCodeType\":\"CST\",\"taxCode\":\"00\",\"origin\":0,\"gtin\":\"7891234567891\",\"gtinTrib\":\"7891234567891\",\"taxUnit\":\"UN\",\"icmsRate\":18,\"pisCst\":\"01\",\"pisRate\":1.65,\"cofinsCst\":\"01\",\"cofinsRate\":7.6}"
 curl --fail --silent --show-error -X PUT -H "Authorization: Bearer $AUTH" -H 'Content-Type: application/json' \
   -d "$PRODUCT_JSON" "$BASE_URL/products/$PRODUCT_ID" > /tmp/cad-functional-product-update.json
 jq -e '.product.name | startswith("Produto Funcional")' /tmp/cad-functional-product-update.json >/dev/null
