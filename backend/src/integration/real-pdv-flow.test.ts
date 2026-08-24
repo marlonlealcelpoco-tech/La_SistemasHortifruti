@@ -10,7 +10,7 @@ import { SalesReturnRepository } from "../sales/returns.js";
 import { StoreCreditRepository } from "../customers/store-credit.js";
 import { FinanceRepository } from "../finance/repository.js";
 
-test("real backend flow: purchase -> stock -> sale -> receipt -> return credit -> new sale -> cash close", async (t) => {
+test("real backend flow: purchase -> stock -> credit sale -> partial/full receipt -> return credit -> new sale -> cash close", async (t) => {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL ?? "postgresql://la_erp:la_erp_dev@localhost:5432/la_erp"
   });
@@ -19,8 +19,6 @@ test("real backend flow: purchase -> stock -> sale -> receipt -> return credit -
     await pool.end();
   });
 
-  // Keep the integration fixture aligned with the schema actually migrated by CI.
-  // Installments are represented by financial_entries/settlements in the current model.
   await pool.query("TRUNCATE TABLE users, customers, suppliers, products, stock, stock_movements, purchases, purchase_items, sales, sale_items, financial_entries, financial_settlements, cash_sessions, cash_events, sale_payments, sales_returns, customer_credit_ledger CASCADE");
 
   const parties = new PartyRepository(pool);
@@ -77,16 +75,48 @@ test("real backend flow: purchase -> stock -> sale -> receipt -> return credit -
   const afterCreditSale = await pool.query<{ quantity: string }>("SELECT quantity FROM stock WHERE product_id = $1", [product.id]);
   assert.equal(Number(afterCreditSale.rows[0].quantity), 4);
 
-  const receivable = await finance.list("RECEIVABLE", "PENDING");
-  const saleReceivable = receivable.find((entry) => entry.sale_id === creditSale.id);
+  const pending = await finance.list("RECEIVABLE", "PENDING");
+  const saleReceivable = pending.find((entry) => entry.sale_id === creditSale.id);
   assert.ok(saleReceivable);
   assert.equal(Number(saleReceivable.amount), 90);
+  assert.equal(Number(saleReceivable.settled_amount), 0);
 
-  const received = await finance.settle(saleReceivable.id, "RECEIVABLE", 90, "CASH", cashSessionId);
-  assert.notEqual(received, "not_found");
-  assert.notEqual(received, "already_settled");
-  assert.notEqual(received, "exceeds_remaining");
-  assert.equal((received as { status: string }).status, "RECEIVED");
+  const partial = await finance.settle(saleReceivable.id, "RECEIVABLE", 40, "CASH", cashSessionId);
+  assert.notEqual(partial, "not_found");
+  assert.notEqual(partial, "already_settled");
+  assert.notEqual(partial, "exceeds_remaining");
+  assert.equal((partial as { status: string }).status, "PARTIAL");
+  assert.equal(Number((partial as { settled_amount: string }).settled_amount), 40);
+
+  const afterPartial = (await finance.list("RECEIVABLE", "PARTIAL")).find((entry) => entry.id === saleReceivable.id);
+  assert.ok(afterPartial);
+  assert.equal(Number(afterPartial.settled_amount), 40);
+
+  const receiptEventsAfterPartial = await pool.query<{ count: string }>(
+    "SELECT COUNT(*) AS count FROM cash_events WHERE cash_session_id = $1 AND type = 'CUSTOMER_RECEIPT' AND amount = 40",
+    [cashSessionId]
+  );
+  assert.equal(Number(receiptEventsAfterPartial.rows[0].count), 1);
+
+  const final = await finance.settle(saleReceivable.id, "RECEIVABLE", 50, "CASH", cashSessionId);
+  assert.notEqual(final, "not_found");
+  assert.notEqual(final, "already_settled");
+  assert.notEqual(final, "exceeds_remaining");
+  assert.equal((final as { status: string }).status, "RECEIVED");
+  assert.equal(Number((final as { settled_amount: string }).settled_amount), 90);
+
+  const received = (await finance.list("RECEIVABLE", "RECEIVED")).find((entry) => entry.id === saleReceivable.id);
+  assert.ok(received);
+  assert.equal(Number(received.settled_amount), 90);
+
+  const receiptEvents = await pool.query<{ total: string }>(
+    "SELECT COALESCE(SUM(amount), 0) AS total FROM cash_events WHERE cash_session_id = $1 AND type = 'CUSTOMER_RECEIPT'",
+    [cashSessionId]
+  );
+  assert.equal(Number(receiptEvents.rows[0].total), 90);
+
+  const excess = await finance.settle(saleReceivable.id, "RECEIVABLE", 1, "CASH", cashSessionId);
+  assert.equal(excess, "already_settled");
 
   const returned = await returns.create({
     saleId: creditSale.id,
