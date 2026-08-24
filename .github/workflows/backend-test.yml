@@ -72,11 +72,17 @@ jobs:
           const client = await pool.connect();
           try {
             await client.query('BEGIN');
-            const role = await client.query('SELECT id FROM roles WHERE name = $1', ['ADMIN']);
+            const role = await client.query('SELECT id FROM roles WHERE name = $1::text', ['ADMIN']);
             if (role.rowCount === 0) throw new Error('ADMIN role was not created by migrations');
             const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
-            await client.query('INSERT INTO users (id, name, email, password_hash, active) VALUES (1, $1, $2, $3, TRUE)', ['Admin', process.env.ADMIN_EMAIL, hash]);
-            await client.query('INSERT INTO user_roles (user_id, role_id) VALUES (1, $2)', [1, role.rows[0].id]);
+            await client.query(
+              'INSERT INTO users (id, name, email, password_hash, active) VALUES ($1::bigint, $2::text, $3::text, $4::text, TRUE)',
+              [1, 'Admin', process.env.ADMIN_EMAIL, hash]
+            );
+            await client.query(
+              'INSERT INTO user_roles (user_id, role_id) VALUES ($1::bigint, $2::bigint)',
+              [1, role.rows[0].id]
+            );
             await client.query('COMMIT');
             console.log('CI administrator seeded:', process.env.ADMIN_EMAIL);
           } catch (error) {
