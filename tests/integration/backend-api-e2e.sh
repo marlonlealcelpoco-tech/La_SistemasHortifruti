@@ -14,7 +14,7 @@ api() { curl -sS --fail-with-body "$@"; }
 json() { jq -r "$1"; }
 num() { awk '{print $1+0}' <<< "$1"; }
 
-echo "1) Health check"
+ echo "1) Health check"
 api "$BASE_URL/health" | tee /tmp/erp-health.json
 jq -e '.status == "ok"' /tmp/erp-health.json >/dev/null
 
@@ -74,8 +74,10 @@ CASH_SESSION_ID=$(json '.cashSession.id' < /tmp/erp-cash-open.json)
 test "$CASH_SESSION_ID" != "null"
 
 echo '9) Sell 6 units for R$12 each = R$72 cash'
-api "${AUTH[@]}" -H 'Content-Type: application/json' -d "{\"cashSessionId\":$CASH_SESSION_ID,\"items\":[{\"productId\":$PRODUCT_ID,\"quantity\":6,\"unitPrice\":12}],\"payments\":[{\"paymentMethod\":\"CASH\",\"amount\":72}]}" "$BASE_URL/sales" > /tmp/erp-sale.json
+SALE_STATUS=$(curl -sS -o /tmp/erp-sale.json -w '%{http_code}' "${AUTH[@]}" -H 'Content-Type: application/json' -d "{\"cashSessionId\":$CASH_SESSION_ID,\"items\":[{\"productId\":$PRODUCT_ID,\"quantity\":6,\"unitPrice\":12}],\"payments\":[{\"paymentMethod\":\"CASH\",\"amount\":72}]}" "$BASE_URL/sales" || true)
 cat /tmp/erp-sale.json
+echo "Sale HTTP status: $SALE_STATUS"
+if [[ "$SALE_STATUS" != "200" && "$SALE_STATUS" != "201" ]]; then echo "Create sale failed; response above is the actual backend error."; exit 1; fi
 SALE_ID=$(json '.sale.id' < /tmp/erp-sale.json)
 test "$SALE_ID" != "null"
 STOCK_AFTER_SALE=$(psql "$DATABASE_URL" -tAc "SELECT quantity FROM stock WHERE product_id = $PRODUCT_ID;" | xargs)
