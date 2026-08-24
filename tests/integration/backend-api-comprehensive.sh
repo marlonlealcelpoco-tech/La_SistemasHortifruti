@@ -31,7 +31,6 @@ ADMIN_ID=$(json '.user.id' < /tmp/erp-comprehensive-login.json)
 AUTH=(-H "Authorization: Bearer $TOKEN")
 test -n "$TOKEN" && test "$TOKEN" != "null"
 
-# User administration
 echo "3) List users"
 curl --fail --silent "${AUTH[@]}" "$BASE_URL/users" > /tmp/erp-users.json
 jq -e '.users | length >= 1' /tmp/erp-users.json >/dev/null
@@ -45,8 +44,14 @@ VENDOR_ID=$(json '.user.id' < /tmp/erp-user-created.json)
 test "$VENDOR_ID" != "null"
 
 echo "5) Replace user roles"
-curl --fail --silent "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
-  -d '{"roles":["VENDAS","SUPERVISOR"]}' "$BASE_URL/users/$VENDOR_ID/roles" > /tmp/erp-user-roles.json
+ROLE_STATUS=$(curl -sS -o /tmp/erp-user-roles.json -w '%{http_code}' "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
+  -d '{"roles":["VENDAS","SUPERVISOR"]}' "$BASE_URL/users/$VENDOR_ID/roles" || true)
+echo "Replace user roles HTTP status: $ROLE_STATUS"
+cat /tmp/erp-user-roles.json
+if [[ "$ROLE_STATUS" != "200" ]]; then
+  echo "Replace user roles failed; response above is the actual backend response."
+  exit 1
+fi
 jq -e '.user.roles | index("SUPERVISOR") != null' /tmp/erp-user-roles.json >/dev/null
 
 echo "6) Restore user role to VENDAS"
@@ -140,7 +145,6 @@ jq -e '.consolidated.expectedCash >= 0' /tmp/erp-daily-cash.json >/dev/null
 
 # Sale schema validation: credit requires customer/due date, and totals must balance
 echo "13) Sales validation rules"
-# Use an impossible session ID: schema validation happens before repository access for malformed payloads.
 expect_status 400 "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d '{"cashSessionId":1,"items":[{"productId":1,"quantity":1,"unitPrice":10}],"payments":[{"paymentMethod":"CREDIT","amount":10}]}' \
   "$BASE_URL/sales"
@@ -155,7 +159,6 @@ expect_status 400 "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
 expect_status 400 "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' \
   -d '{"active":false}' "$BASE_URL/users/$ADMIN_ID/status"
 
-# Cleanup: deactivate temporary user without deleting production data.
 echo "15) Deactivate temporary test user"
 curl --fail --silent "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' \
   -d '{"active":false}' "$BASE_URL/users/$VENDOR_ID/status" >/dev/null
