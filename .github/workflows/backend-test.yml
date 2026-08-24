@@ -160,3 +160,6 @@ jobs:
       - name: Comprehensive backend API battery
         shell: bash
         run: bash tests/integration/backend-api-comprehensive.sh
+      - name: Module 2 - Cadastros authorization matrix
+        shell: bash
+        run: bash tests/integration/backend-cadastros-authorization.sh
