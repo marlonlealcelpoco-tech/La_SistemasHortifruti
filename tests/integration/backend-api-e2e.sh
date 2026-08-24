@@ -14,7 +14,7 @@ api() { curl -sS --fail-with-body "$@"; }
 json() { jq -r "$1"; }
 num() { awk '{print $1+0}' <<< "$1"; }
 
- echo "1) Health check"
+echo "1) Health check"
 api "$BASE_URL/health" | tee /tmp/erp-health.json
 jq -e '.status == "ok"' /tmp/erp-health.json >/dev/null
 
@@ -29,6 +29,8 @@ cat /tmp/erp-login.json
 AUTH_TOKEN=$(json '.token' < /tmp/erp-login.json)
 test -n "$AUTH_TOKEN" && test "$AUTH_TOKEN" != "null"
 AUTH=(-H "Authorization: Bearer $AUTH_TOKEN")
+ADMIN_USER_ID=$(json '.user.id' < /tmp/erp-login.json)
+test "$ADMIN_USER_ID" != "null"
 
 echo "4) Create supplier"
 SUPPLIER_STATUS=$(curl -sS -o /tmp/erp-supplier.json -w '%{http_code}' "${AUTH[@]}" -H 'Content-Type: application/json' -d "{\"name\":\"Fornecedor Integração E2E $RUN_ID\",\"document\":\"$SUPPLIER_DOC\",\"email\":\"fornecedor-e2e-$RUN_ID@example.com\",\"phone\":\"21999999999\"}" "$BASE_URL/suppliers" || true)
@@ -67,8 +69,8 @@ COST_AFTER_PURCHASE=$(psql "$DATABASE_URL" -tAc "SELECT cost FROM products WHERE
 PAYABLE_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM financial_entries WHERE purchase_id = $PURCHASE_ID AND type = 'PAYABLE';" | xargs)
 test "$PAYABLE_COUNT" = "1"
 
-echo '8) Open cash with R$100'
-api "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"terminalId":"E2E-TERMINAL","openingAmount":100}' "$BASE_URL/cash-sessions" > /tmp/erp-cash-open.json
+echo '8) Open cash with R$100 for the authenticated admin seller'
+api "${AUTH[@]}" -H 'Content-Type: application/json' -d "{\"terminalId\":\"E2E-TERMINAL\",\"openingAmount\":100,\"sellerId\":$ADMIN_USER_ID}" "$BASE_URL/cash-sessions" > /tmp/erp-cash-open.json
 cat /tmp/erp-cash-open.json
 CASH_SESSION_ID=$(json '.cashSession.id' < /tmp/erp-cash-open.json)
 test "$CASH_SESSION_ID" != "null"
