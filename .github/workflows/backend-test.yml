@@ -163,6 +163,9 @@ jobs:
       - name: Module 2 - Cadastros authorization matrix
         shell: bash
         run: bash tests/integration/backend-cadastros-authorization.sh
+      - name: Module 2 - Clientes functional battery
+        shell: bash
+        run: bash tests/integration/backend-cadastro-clientes-functional.sh
       - name: Module 2 - Cadastros functional battery
         shell: bash
         run: bash tests/integration/backend-cadastros-functional.sh
