@@ -22,9 +22,9 @@ export class SalesRepository {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const session = await client.query<{ seller_id: number }>("SELECT seller_id FROM cash_sessions WHERE id = $1 AND status = 'OPEN' FOR UPDATE", [input.cashSessionId]);
+      const session = await client.query<{ seller_id: number | string }>("SELECT seller_id FROM cash_sessions WHERE id = $1 AND status = 'OPEN' FOR UPDATE", [input.cashSessionId]);
       if (!session.rows[0]) throw new Error("Caixa não está aberto.");
-      if (session.rows[0].seller_id !== input.sellerId) throw new Error("A venda deve ser registrada no caixa do vendedor.");
+      if (Number(session.rows[0].seller_id) !== Number(input.sellerId)) throw new Error("A venda deve ser registrada no caixa do vendedor.");
       if (!input.items.length) throw new Error("A venda precisa ter pelo menos um item.");
 
       const total = Number(input.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0).toFixed(2));
@@ -71,7 +71,7 @@ export class SalesRepository {
       const sale = await client.query<SaleRecord>(`SELECT id, customer_id, seller_id, cash_session_id, status, total, created_at FROM sales WHERE id = $1 FOR UPDATE`, [saleId]);
       const record = sale.rows[0];
       if (!record) { await client.query("ROLLBACK"); return "not_found"; }
-      if (record.seller_id !== sellerId) { await client.query("ROLLBACK"); return "not_allowed"; }
+      if (record.seller_id != null && Number(record.seller_id) !== Number(sellerId)) { await client.query("ROLLBACK"); return "not_allowed"; }
       if (record.status === "CANCELLED") { await client.query("ROLLBACK"); return "already_cancelled"; }
       const items = await client.query<{ product_id: number; quantity: string }>("SELECT product_id, quantity FROM sale_items WHERE sale_id = $1", [saleId]);
       for (const item of items.rows) { await client.query("UPDATE stock SET quantity = quantity + $2 WHERE product_id = $1", [item.product_id, item.quantity]); await client.query(`INSERT INTO stock_movements (product_id, type, quantity, reference, notes) VALUES ($1, 'ENTRY', $2, $3, 'Estorno por cancelamento de venda')`, [item.product_id, item.quantity, `CANCELAMENTO-${saleId}`]); }
