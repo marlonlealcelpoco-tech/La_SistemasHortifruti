@@ -6,11 +6,13 @@ on:
     paths:
       - 'backend/**'
       - 'database/**'
+      - 'tests/**'
       - '.github/workflows/backend-test.yml'
   pull_request:
     paths:
       - 'backend/**'
       - 'database/**'
+      - 'tests/**'
       - '.github/workflows/backend-test.yml'
   workflow_dispatch:
 
@@ -141,3 +143,6 @@ jobs:
           cat /tmp/product-updated.json
           grep -q 'Produto CI Atualizado' /tmp/product-updated.json
           echo 'Backend smoke tests passed.'
+      - name: Real ERP API integration battery
+        shell: bash
+        run: bash tests/integration/backend-api-e2e.sh
