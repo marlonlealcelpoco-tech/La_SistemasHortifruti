@@ -38,6 +38,8 @@ export type FinancialEntryInput = {
 export class FinanceRepository {
   constructor(private readonly pool: Pool) {}
 
+  // Used by the operational cashier flow to ensure a VENDAS user receives
+  // a receivable only through their own currently open cash session.
   async getCashSessionOwner(cashSessionId: number): Promise<{ seller_id: number } | undefined> {
     const result = await this.pool.query<{ seller_id: number }>(
       "SELECT seller_id FROM cash_sessions WHERE id = $1 AND status = 'OPEN'",
