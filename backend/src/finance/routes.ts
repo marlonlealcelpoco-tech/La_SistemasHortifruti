@@ -37,8 +37,20 @@ async function settle(
   finance: FinanceRepository,
   id: number,
   input: z.infer<typeof settlementSchema>,
+  requestUserId: number,
+  users: UserRepository,
   reply: any
 ) {
+  if (type === "RECEIVABLE") {
+    const roles = await users.findRoleNames(requestUserId);
+    if (roles.includes("VENDAS") && !roles.includes("ADMIN") && !roles.includes("FINANCEIRO")) {
+      if (!input.cashSessionId) return reply.code(400).send({ message: "O vendedor deve receber a conta pelo próprio caixa." });
+      const session = await finance.getCashSessionOwner(input.cashSessionId);
+      if (!session) return reply.code(404).send({ message: "Caixa não encontrado ou fechado." });
+      if (session.seller_id !== requestUserId) return reply.code(403).send({ message: "O vendedor só pode receber no próprio caixa." });
+    }
+  }
+
   const result = await finance.settle(
     id,
     type,
@@ -98,7 +110,7 @@ export function registerFinanceRoutes(app: FastifyInstance, users: UserRepositor
   app.post("/finance/payables/:id/pay", { onRequest: [app.authenticate] }, async (request, reply) => {
     if (!(await requireRoles(request, reply, users, [...financeRoles]))) return;
     const { id } = idSchema.parse(request.params);
-    return settle("PAYABLE", finance, id, settlementSchema.parse(request.body), reply);
+    return settle("PAYABLE", finance, id, settlementSchema.parse(request.body), Number(request.user.sub), users, reply);
   });
 
   app.get("/finance/receivables", { onRequest: [app.authenticate] }, async (request, reply) => {
@@ -119,8 +131,11 @@ export function registerFinanceRoutes(app: FastifyInstance, users: UserRepositor
   });
 
   app.post("/finance/receivables/:id/receive", { onRequest: [app.authenticate] }, async (request, reply) => {
-    if (!(await requireRoles(request, reply, users, [...financeRoles]))) return;
+    const requestUserId = Number(request.user.sub);
+    const roles = await users.findRoleNames(requestUserId);
+    const allowed = roles.includes("ADMIN") || roles.includes("FINANCEIRO") || roles.includes("VENDAS");
+    if (!allowed) return reply.code(403).send({ message: "Acesso não autorizado." });
     const { id } = idSchema.parse(request.params);
-    return settle("RECEIVABLE", finance, id, settlementSchema.parse(request.body), reply);
+    return settle("RECEIVABLE", finance, id, settlementSchema.parse(request.body), requestUserId, users, reply);
   });
 }
