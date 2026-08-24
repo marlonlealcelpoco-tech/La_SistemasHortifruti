@@ -74,8 +74,10 @@ done
 echo "6) CLIENTE — validações"
 expect_400 -X POST -H "Authorization: Bearer $AUTH" -H 'Content-Type: application/json' \
   -d '{"name":"X","document":"CAD-INVALID","email":"email-invalido","phone":"21900000000"}' "$BASE_URL/customers"
+# document, email e phone são opcionais no cadastro atual; a validação de campo obrigatório
+# deve usar o nome, que é obrigatório pelo contrato do backend.
 expect_400 -X POST -H "Authorization: Bearer $AUTH" -H 'Content-Type: application/json' \
-  -d '{"name":"Cliente sem nome","email":"cliente-validacao@example.com"}' "$BASE_URL/customers" >/dev/null
+  -d '{"document":"CAD-VALIDACAO-SEM-NOME","email":"cliente-validacao@example.com","phone":"21900000000"}' "$BASE_URL/customers" >/dev/null
 
 echo "7) FORNECEDOR — criação com todos os campos"
 SUPPLIER_DOC="FUNC-S-${KEY}"
