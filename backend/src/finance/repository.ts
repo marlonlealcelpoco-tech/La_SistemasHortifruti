@@ -38,6 +38,14 @@ export type FinancialEntryInput = {
 export class FinanceRepository {
   constructor(private readonly pool: Pool) {}
 
+  async getCashSessionOwner(cashSessionId: number): Promise<{ seller_id: number } | undefined> {
+    const result = await this.pool.query<{ seller_id: number }>(
+      "SELECT seller_id FROM cash_sessions WHERE id = $1 AND status = 'OPEN'",
+      [cashSessionId]
+    );
+    return result.rows[0];
+  }
+
   async create(input: FinancialEntryInput): Promise<FinancialEntry> {
     const result = await this.pool.query<FinancialEntry>(
       `INSERT INTO financial_entries (
