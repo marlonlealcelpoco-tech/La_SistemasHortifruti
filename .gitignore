@@ -1,0 +1,10 @@
+# Dependências e builds
+backend/node_modules/
+backend/dist/
+
+# Configurações e segredos locais
+backend/.env
+.env
+
+# Dados locais do Docker
+postgres_data/
