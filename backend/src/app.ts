@@ -19,7 +19,7 @@ import { registerPurchaseRoutes } from "./purchases/routes.js";
 import { SalesRepository } from "./sales/repository.js";
 import { SupervisorActionsRepository } from "./sales/supervisor-actions.js";
 import { registerSalesRoutes } from "./sales/routes.js";
-import { registerUserRoutes } from "./users/routes.js";
+import { registerUserRoutes } from "./cadastro/usuarios/routes.js";
 
 declare module "fastify" {
   interface FastifyInstance {
