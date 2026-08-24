@@ -35,10 +35,14 @@ create_user() {
 
 probe_create() {
   local label="$1" expected="$2" out="$3"; shift 3
+  local status
   echo "  $label"
-  expect_status "$expected" "$@" > "$out"
-  if [[ "$expected" = "201" ]]; then
-    cat "$out"
+  status=$(curl -sS -o "$out" -w '%{http_code}' "$@" || true)
+  echo "HTTP $status"
+  cat "$out"
+  if [[ "$status" != "$expected" ]]; then
+    echo "Falha em $label: esperado HTTP $expected, recebido HTTP $status" >&2
+    exit 1
   fi
 }
 
