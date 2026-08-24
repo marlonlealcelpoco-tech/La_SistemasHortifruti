@@ -55,6 +55,16 @@ export function buildApp(environment: Environment, pool: Pool) {
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) return reply.code(400).send({ message: "Dados inválidos.", details: error.issues });
     if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") return reply.code(409).send({ message: "Já existe um registro com estes dados." });
+
+    // Authentication failures from @fastify/jwt are client errors, not server errors.
+    // Keep the API contract consistent: missing/invalid credentials must return HTTP 401.
+    if (typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" && error.code.startsWith("FST_JWT_")) {
+      const message = error.code === "FST_JWT_NO_AUTHORIZATION_IN_HEADER"
+        ? "Autenticação obrigatória."
+        : "Token de autenticação inválido.";
+      return reply.code(401).send({ message });
+    }
+
     app.log.error(error);
     if (environment.NODE_ENV === "test") {
       const message = error instanceof Error ? error.message : String(error);
