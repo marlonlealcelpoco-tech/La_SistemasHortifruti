@@ -4,7 +4,8 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://127.0.0.1:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin1234}"
-RUN_ID="${GITHUB_RUN_ID:-local}-$(date +%s%N)"
+RUN_ID="${GITHUB_RUN_ID:-local}"
+RUN_KEY="${RUN_ID:0:20}"
 
 expect_status() {
   local expected="$1"; shift
@@ -32,6 +33,15 @@ create_user() {
   jq -e '.user.id != null' "$out" >/dev/null
 }
 
+probe_create() {
+  local label="$1" expected="$2" out="$3"; shift 3
+  echo "  $label"
+  expect_status "$expected" "$@" > "$out"
+  if [[ "$expected" = "201" ]]; then
+    cat "$out"
+  fi
+}
+
 ADMIN_JSON=/tmp/erp-cadastros-admin.json
 login "$ADMIN_EMAIL" "$ADMIN_PASSWORD" "$ADMIN_JSON"
 ADMIN_TOKEN=$(jq -r '.token' "$ADMIN_JSON")
@@ -52,19 +62,26 @@ create_user GERENTE "$GER_EMAIL" Gerente1234 /tmp/cad-gerente.json
 
 echo "2) Admin creates probe customer, supplier and product"
 CUSTOMER_EMAIL="cad-cliente-${RUN_ID}@example.com"
-curl --fail --silent --show-error "${ADMIN_AUTH[@]}" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Cliente Cadastro $RUN_ID\",\"document\":\"CAD-$RUN_ID\",\"email\":\"$CUSTOMER_EMAIL\",\"phone\":\"21988880000\"}" \
-  "$BASE_URL/customers" > /tmp/cad-customer.json
+CUSTOMER_DOC="CAD-${RUN_KEY}"
+SUPPLIER_DOC="SUP-${RUN_KEY}"
+probe_create "POST /customers" 201 /tmp/cad-customer.json \
+  curl "${ADMIN_AUTH[@]}" -X POST -H 'Content-Type: application/json' \
+  -d "{\"name\":\"Cliente Cadastro $RUN_KEY\",\"document\":\"$CUSTOMER_DOC\",\"email\":\"$CUSTOMER_EMAIL\",\"phone\":\"21988880000\"}" \
+  "$BASE_URL/customers"
 CUSTOMER_ID=$(jq -r '.customer.id' /tmp/cad-customer.json)
 
-curl --fail --silent --show-error "${ADMIN_AUTH[@]}" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Fornecedor Cadastro $RUN_ID\",\"document\":\"SUP-$RUN_ID\",\"email\":\"sup-$RUN_ID@example.com\",\"phone\":\"21988880001\"}" \
-  "$BASE_URL/suppliers" > /tmp/cad-supplier.json
+a=0
+probe_create "POST /suppliers" 201 /tmp/cad-supplier.json \
+  curl "${ADMIN_AUTH[@]}" -X POST -H 'Content-Type: application/json' \
+  -d "{\"name\":\"Fornecedor Cadastro $RUN_KEY\",\"document\":\"$SUPPLIER_DOC\",\"email\":\"sup-$RUN_KEY@example.com\",\"phone\":\"21988880001\"}" \
+  "$BASE_URL/suppliers"
 SUPPLIER_ID=$(jq -r '.supplier.id' /tmp/cad-supplier.json)
 
-curl --fail --silent --show-error "${ADMIN_AUTH[@]}" -H 'Content-Type: application/json' \
-  -d "{\"code\":\"CAD-${GITHUB_RUN_ID:-local}\",\"name\":\"Produto Cadastro $RUN_ID\",\"unit\":\"UN\",\"cost\":5,\"salePrice\":10,\"profitMarginPct\":100}" \
-  "$BASE_URL/products" > /tmp/cad-product.json
+PRODUCT_CODE="CAD-${RUN_KEY}"
+probe_create "POST /products" 201 /tmp/cad-product.json \
+  curl "${ADMIN_AUTH[@]}" -X POST -H 'Content-Type: application/json' \
+  -d "{\"code\":\"$PRODUCT_CODE\",\"name\":\"Produto Cadastro $RUN_KEY\",\"unit\":\"UN\",\"cost\":5,\"salePrice\":10,\"profitMarginPct\":100}" \
+  "$BASE_URL/products"
 PRODUCT_ID=$(jq -r '.product.id' /tmp/cad-product.json)
 
 test "$CUSTOMER_ID" != null
@@ -98,7 +115,7 @@ echo "4) Customer maintenance: VENDAS, SUPERVISOR and ESTOQUE must be denied"
 for role in VENDAS SUPERVISOR ESTOQUE; do
   declare -n AUTH_REF="${role}_AUTH"
   expect_status 403 "${AUTH_REF[@]}" -X PUT -H 'Content-Type: application/json' \
-    -d "{\"name\":\"Cliente bloqueado $RUN_ID\",\"document\":\"CAD-$RUN_ID\",\"email\":\"$CUSTOMER_EMAIL\",\"phone\":\"21900000000\"}" \
+    -d "{\"name\":\"Cliente bloqueado $RUN_KEY\",\"document\":\"$CUSTOMER_DOC\",\"email\":\"$CUSTOMER_EMAIL\",\"phone\":\"21900000000\"}" \
     "$BASE_URL/customers/$CUSTOMER_ID"
 done
 
@@ -106,7 +123,7 @@ echo "5) Customer maintenance: FINANCEIRO and GERENTE must be allowed"
 for role in FINANCEIRO GERENTE; do
   declare -n AUTH_REF="${role}_AUTH"
   curl --fail --silent --show-error "${AUTH_REF[@]}" -X PUT -H 'Content-Type: application/json' \
-    -d "{\"name\":\"Cliente $role $RUN_ID\",\"document\":\"CAD-$RUN_ID\",\"email\":\"$CUSTOMER_EMAIL\",\"phone\":\"21977770000\"}" \
+    -d "{\"name\":\"Cliente $role $RUN_KEY\",\"document\":\"$CUSTOMER_DOC\",\"email\":\"$CUSTOMER_EMAIL\",\"phone\":\"21977770000\"}" \
     "$BASE_URL/customers/$CUSTOMER_ID" >/dev/null
 done
 
@@ -125,13 +142,13 @@ echo "7) Supplier maintenance: only FINANCEIRO and GERENTE are allowed"
 for role in VENDAS SUPERVISOR ESTOQUE; do
   declare -n AUTH_REF="${role}_AUTH"
   expect_status 403 "${AUTH_REF[@]}" -X PUT -H 'Content-Type: application/json' \
-    -d "{\"name\":\"Fornecedor bloqueado $RUN_ID\",\"document\":\"SUP-$RUN_ID\",\"email\":\"sup-$RUN_ID@example.com\",\"phone\":\"21900000001\"}" \
+    -d "{\"name\":\"Fornecedor bloqueado $RUN_KEY\",\"document\":\"$SUPPLIER_DOC\",\"email\":\"sup-$RUN_KEY@example.com\",\"phone\":\"21900000001\"}" \
     "$BASE_URL/suppliers/$SUPPLIER_ID"
 done
 for role in FINANCEIRO GERENTE; do
   declare -n AUTH_REF="${role}_AUTH"
   curl --fail --silent --show-error "${AUTH_REF[@]}" -X PUT -H 'Content-Type: application/json' \
-    -d "{\"name\":\"Fornecedor $role $RUN_ID\",\"document\":\"SUP-$RUN_ID\",\"email\":\"sup-$RUN_ID@example.com\",\"phone\":\"21955550000\"}" \
+    -d "{\"name\":\"Fornecedor $role $RUN_KEY\",\"document\":\"$SUPPLIER_DOC\",\"email\":\"sup-$RUN_KEY@example.com\",\"phone\":\"21955550000\"}" \
     "$BASE_URL/suppliers/$SUPPLIER_ID" >/dev/null
 done
 
@@ -156,7 +173,7 @@ echo "11) Product maintenance: VENDAS, SUPERVISOR and ESTOQUE must be denied"
 for role in VENDAS SUPERVISOR ESTOQUE; do
   declare -n AUTH_REF="${role}_AUTH"
   expect_status 403 "${AUTH_REF[@]}" -X PUT -H 'Content-Type: application/json' \
-    -d "{\"code\":\"CAD-${GITHUB_RUN_ID:-local}\",\"name\":\"Produto bloqueado $RUN_ID\",\"unit\":\"UN\",\"cost\":6,\"salePrice\":12,\"profitMarginPct\":100}" \
+    -d "{\"code\":\"$PRODUCT_CODE\",\"name\":\"Produto bloqueado $RUN_KEY\",\"unit\":\"UN\",\"cost\":6,\"salePrice\":12,\"profitMarginPct\":100}" \
     "$BASE_URL/products/$PRODUCT_ID"
 done
 
@@ -164,7 +181,7 @@ echo "12) Product maintenance: FINANCEIRO and GERENTE must be allowed"
 for role in FINANCEIRO GERENTE; do
   declare -n AUTH_REF="${role}_AUTH"
   curl --fail --silent --show-error "${AUTH_REF[@]}" -X PUT -H 'Content-Type: application/json' \
-    -d "{\"code\":\"CAD-${GITHUB_RUN_ID:-local}\",\"name\":\"Produto $role $RUN_ID\",\"unit\":\"UN\",\"cost\":6,\"salePrice\":12,\"profitMarginPct\":100}" \
+    -d "{\"code\":\"$PRODUCT_CODE\",\"name\":\"Produto $role $RUN_KEY\",\"unit\":\"UN\",\"cost\":6,\"salePrice\":12,\"profitMarginPct\":100}" \
     "$BASE_URL/products/$PRODUCT_ID" >/dev/null
 done
 
