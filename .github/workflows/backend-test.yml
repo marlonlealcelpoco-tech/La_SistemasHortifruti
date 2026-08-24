@@ -70,16 +70,31 @@ jobs:
       - name: Unit tests
         working-directory: backend
         run: npm test
+      - name: Reset database after unit tests
+        run: |
+          set -euo pipefail
+          echo 'Resetting users after unit tests'
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'TRUNCATE TABLE users CASCADE;'
+          USERS_COUNT=$(psql "$DATABASE_URL" -tAc 'SELECT COUNT(*) FROM users;')
+          echo "CI users before API smoke test: $USERS_COUNT"
+          test "$USERS_COUNT" = "0"
       - name: Start API
         working-directory: backend
         run: |
           npm start > /tmp/backend.log 2>&1 &
+          echo $! > /tmp/backend.pid
           for i in {1..30}; do
             if curl --fail --silent http://127.0.0.1:3000/health > /tmp/health.json; then cat /tmp/health.json; exit 0; fi
             sleep 1
           done
           cat /tmp/backend.log
           exit 1
+      - name: Verify database is empty before bootstrap
+        run: |
+          set -euo pipefail
+          USERS_COUNT=$(psql "$DATABASE_URL" -tAc 'SELECT COUNT(*) FROM users;')
+          echo "CI users before /auth/setup: $USERS_COUNT"
+          test "$USERS_COUNT" = "0"
       - name: Functional API smoke tests
         shell: bash
         run: |
