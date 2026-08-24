@@ -61,38 +61,6 @@ jobs:
           done
       - name: Reset CI users
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'TRUNCATE TABLE users CASCADE;'
-      - name: Seed CI administrator
-        working-directory: backend
-        run: |
-          node --input-type=module <<'NODE'
-          import bcrypt from 'bcrypt';
-          import pg from 'pg';
-          const { Pool } = pg;
-          const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-          const client = await pool.connect();
-          try {
-            await client.query('BEGIN');
-            const role = await client.query('SELECT id FROM roles WHERE name = $1::text', ['ADMIN']);
-            if (role.rowCount === 0) throw new Error('ADMIN role was not created by migrations');
-            const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
-            await client.query(
-              'INSERT INTO users (id, name, email, password_hash, active) VALUES ($1::bigint, $2::text, $3::text, $4::text, TRUE)',
-              [1, 'Admin', process.env.ADMIN_EMAIL, hash]
-            );
-            await client.query(
-              'INSERT INTO user_roles (user_id, role_id) VALUES ($1::bigint, $2::bigint)',
-              [1, role.rows[0].id]
-            );
-            await client.query('COMMIT');
-            console.log('CI administrator seeded:', process.env.ADMIN_EMAIL);
-          } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-          } finally {
-            client.release();
-            await pool.end();
-          }
-          NODE
       - name: Typecheck
         working-directory: backend
         run: npm run typecheck
@@ -119,29 +87,39 @@ jobs:
           echo '1) /health'
           curl --fail --silent http://127.0.0.1:3000/health | tee /tmp/health.json
           grep -q '"status":"ok"' /tmp/health.json
-          echo '2) Login with Admin / Admin1234'
+          echo '2) Bootstrap administrator'
+          SETUP_STATUS=$(curl -sS -o /tmp/setup.json -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"Admin","email":"admin@example.com","password":"Admin1234","bootstrapToken":"ci-bootstrap-token-with-at-least-16-chars"}' \
+            http://127.0.0.1:3000/auth/setup || true)
+          cat /tmp/setup.json
+          if [ "$SETUP_STATUS" != "200" ] && [ "$SETUP_STATUS" != "201" ]; then
+            echo "Bootstrap failed with HTTP $SETUP_STATUS"
+            exit 1
+          fi
+          echo '3) Login with Admin / Admin1234'
           curl --fail --silent --show-error -H 'Content-Type: application/json' \
             -d '{"email":"admin@example.com","password":"Admin1234"}' \
             http://127.0.0.1:3000/auth/login > /tmp/login.json
           cat /tmp/login.json
           LOGIN_TOKEN="$(jq -r '.token' /tmp/login.json)"
           test -n "$LOGIN_TOKEN" && test "$LOGIN_TOKEN" != "null"
-          echo '3) /auth/me'
+          echo '4) /auth/me'
           curl --fail --silent -H "Authorization: Bearer $LOGIN_TOKEN" http://127.0.0.1:3000/auth/me > /tmp/me.json
           cat /tmp/me.json
           grep -q 'Admin' /tmp/me.json
-          echo '4) Create product'
+          echo '5) Create product'
           curl --fail --silent --show-error -H "Authorization: Bearer $LOGIN_TOKEN" -H 'Content-Type: application/json' \
             -d '{"code":"CI-001","name":"Produto CI","unit":"UN","cost":0.65,"salePrice":2.49,"profitMarginPct":283.08}' \
             http://127.0.0.1:3000/products > /tmp/product.json
           cat /tmp/product.json
           PRODUCT_ID="$(jq -r '.product.id' /tmp/product.json)"
           test "$PRODUCT_ID" != "null"
-          echo '5) List products'
+          echo '6) List products'
           curl --fail --silent -H "Authorization: Bearer $LOGIN_TOKEN" 'http://127.0.0.1:3000/products?search=Produto%20CI' > /tmp/products.json
           cat /tmp/products.json
           grep -q 'Produto CI' /tmp/products.json
-          echo '6) Update product'
+          echo '7) Update product'
           curl --fail --silent --show-error -X PUT -H "Authorization: Bearer $LOGIN_TOKEN" -H 'Content-Type: application/json' \
             -d '{"code":"CI-001","name":"Produto CI Atualizado","unit":"UN","cost":0.70,"salePrice":2.79,"profitMarginPct":298.57}' \
             "http://127.0.0.1:3000/products/$PRODUCT_ID" > /tmp/product-updated.json
