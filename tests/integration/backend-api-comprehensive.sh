@@ -6,6 +6,8 @@ EMAIL="${ADMIN_EMAIL:-admin@example.com}"
 PASSWORD="${ADMIN_PASSWORD:-Admin1234}"
 BOOTSTRAP_TOKEN="${BOOTSTRAP_TOKEN:?BOOTSTRAP_TOKEN must be set}"
 RUN_ID="${GITHUB_RUN_ID:-local}-$(date +%s%N)"
+TEST_DOC="CLI-${GITHUB_RUN_ID:-local}"
+SUP_DOC="SUP-${GITHUB_RUN_ID:-local}"
 
 json() { jq -r "$1"; }
 expect_status() {
@@ -62,14 +64,14 @@ curl --fail --silent "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
 echo "7) Customer CRUD/search/status"
 CUSTOMER_EMAIL="cliente-${RUN_ID}@example.com"
 curl --fail --silent --show-error "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Cliente E2E $RUN_ID\",\"document\":\"CLI-$RUN_ID\",\"email\":\"$CUSTOMER_EMAIL\",\"phone\":\"21988888888\"}" \
+  -d "{\"name\":\"Cliente E2E $RUN_ID\",\"document\":\"$TEST_DOC\",\"email\":\"$CUSTOMER_EMAIL\",\"phone\":\"21988888888\"}" \
   "$BASE_URL/customers" > /tmp/erp-customer.json
 CUSTOMER_ID=$(json '.customer.id' < /tmp/erp-customer.json)
 test "$CUSTOMER_ID" != "null"
 curl --fail --silent "${AUTH[@]}" "$BASE_URL/customers?search=Cliente%20E2E" > /tmp/erp-customers.json
 jq -e '.customers | length >= 1' /tmp/erp-customers.json >/dev/null
 curl --fail --silent "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Cliente E2E Atualizado $RUN_ID\",\"document\":\"CLI-$RUN_ID\",\"email\":\"$CUSTOMER_EMAIL\",\"phone\":\"21977777777\"}" \
+  -d "{\"name\":\"Cliente E2E Atualizado $RUN_ID\",\"document\":\"$TEST_DOC\",\"email\":\"$CUSTOMER_EMAIL\",\"phone\":\"21977777777\"}" \
   "$BASE_URL/customers/$CUSTOMER_ID" > /tmp/erp-customer-updated.json
 jq -e '.customer.phone == "21977777777"' /tmp/erp-customer-updated.json >/dev/null
 curl --fail --silent "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' \
@@ -82,14 +84,14 @@ curl --fail --silent "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' \
 echo "8) Supplier CRUD/search/status"
 SUPPLIER_EMAIL="supplier-${RUN_ID}@example.com"
 curl --fail --silent --show-error "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Fornecedor Completo $RUN_ID\",\"document\":\"SUP-$RUN_ID\",\"email\":\"$SUPPLIER_EMAIL\",\"phone\":\"21966666666\"}" \
+  -d "{\"name\":\"Fornecedor Completo $RUN_ID\",\"document\":\"$SUP_DOC\",\"email\":\"$SUPPLIER_EMAIL\",\"phone\":\"21966666666\"}" \
   "$BASE_URL/suppliers" > /tmp/erp-supplier-comprehensive.json
 SUPPLIER_ID=$(json '.supplier.id' < /tmp/erp-supplier-comprehensive.json)
 test "$SUPPLIER_ID" != "null"
 curl --fail --silent "${AUTH[@]}" "$BASE_URL/suppliers?search=Fornecedor%20Completo" > /tmp/erp-suppliers.json
 jq -e '.suppliers | length >= 1' /tmp/erp-suppliers.json >/dev/null
 curl --fail --silent "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Fornecedor Completo Atualizado $RUN_ID\",\"document\":\"SUP-$RUN_ID\",\"email\":\"$SUPPLIER_EMAIL\",\"phone\":\"21955555555\"}" \
+  -d "{\"name\":\"Fornecedor Completo Atualizado $RUN_ID\",\"document\":\"$SUP_DOC\",\"email\":\"$SUPPLIER_EMAIL\",\"phone\":\"21955555555\"}" \
   "$BASE_URL/suppliers/$SUPPLIER_ID" >/tmp/erp-supplier-updated.json
 curl --fail --silent "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' \
   -d '{"active":false}' "$BASE_URL/suppliers/$SUPPLIER_ID/status" >/dev/null
@@ -146,7 +148,7 @@ jq -e '.consolidated.expectedCash >= 0' /tmp/erp-daily-cash.json >/dev/null
 # Sale schema validation: credit requires customer/due date, and totals must balance
 echo "13) Sales validation rules"
 expect_status 400 "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d '{"cashSessionId":1,"items":[{"productId":1,"quantity":1,"unitPrice":10}],"payments":[{"paymentMethod":"CREDIT","amount":10}]}' \
+  -d '{"cashSessionId":1,"items":[{"productId":1,"quantity":1,"unitPrice":10}],"payments":[{"paymentMethod":"CREDIT","amount":10]}' \
   "$BASE_URL/sales"
 expect_status 400 "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d '{"cashSessionId":1,"items":[{"productId":1,"quantity":1,"unitPrice":10}],"payments":[{"paymentMethod":"CASH","amount":9}]}' \
