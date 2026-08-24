@@ -31,7 +31,7 @@ test -n "$AUTH_TOKEN" && test "$AUTH_TOKEN" != "null"
 AUTH=(-H "Authorization: Bearer $AUTH_TOKEN")
 ADMIN_USER_ID=$(json '.user.id' < /tmp/erp-login.json)
 test "$ADMIN_USER_ID" != "null"
-JWT_SUB=$(printf '%s' "$AUTH_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq -r '.sub')
+JWT_SUB=$(printf '%s' "$AUTH_TOKEN" | cut -d. -f2 | tr '_-' '/+' | awk '{r=length($0)%4; if(r==2)$0=$0"=="; else if(r==3)$0=$0"="; print}' | base64 -d 2>/dev/null | jq -r '.sub')
 echo "Authenticated user ID: $ADMIN_USER_ID"
 echo "JWT sub (seller): $JWT_SUB"
 [[ "$JWT_SUB" == "$ADMIN_USER_ID" ]]
