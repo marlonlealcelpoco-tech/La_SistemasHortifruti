@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: la_erp
+      POSTGRES_USER: la_erp
+      POSTGRES_PASSWORD: la_erp_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+      - ./database/migrations/001_enable_user_identity.sql:/docker-entrypoint-initdb.d/002-enable-user-identity.sql:ro
+      - ./database/migrations/002_seed_roles.sql:/docker-entrypoint-initdb.d/003-seed-roles.sql:ro
+      - ./database/migrations/003_enable_party_identity.sql:/docker-entrypoint-initdb.d/004-enable-party-identity.sql:ro
+      - ./database/migrations/004_enable_product_inventory_identity.sql:/docker-entrypoint-initdb.d/005-enable-product-inventory-identity.sql:ro
+      - ./database/migrations/005_add_purchase_import_support.sql:/docker-entrypoint-initdb.d/006-purchase-import-support.sql:ro
+      - ./database/migrations/006_add_sales_and_cash_sessions.sql:/docker-entrypoint-initdb.d/007-sales-and-cash-sessions.sql:ro
+
+volumes:
+  postgres_data:

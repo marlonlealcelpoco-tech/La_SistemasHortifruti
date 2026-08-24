@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b3f78">
+  <title>LA Sistemas ERP</title>
+  <link rel="stylesheet" href="./styles/app-shell.css">
+</head>
+<body>
+  <div class="app-shell" id="appShell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand" aria-label="LA Sistemas ERP">
+        <img class="brand-logo" src="./styles/logo_colorido.png" alt="LA Sistemas ERP">
+      </div>
+      <nav class="menu" aria-label="Menu principal">
+        <div class="menu-section">PRINCIPAL</div>
+        <a class="menu-item active" href="#dashboard" data-module="Dashboard" data-roles="ADMIN,GERENTE,SUPERVISOR,VENDAS,ESTOQUE,FINANCEIRO"><span class="menu-icon">⌂</span><span>Dashboard</span></a>
+        <div class="menu-section">OPERAÇÃO</div>
+        <a class="menu-item" href="#vendas" data-module="Vendas" data-roles="ADMIN,GERENTE,SUPERVISOR,VENDAS"><span class="menu-icon">▣</span><span>Vendas</span></a>
+        <a class="menu-item" href="#caixa" data-module="Caixa" data-roles="ADMIN,GERENTE,SUPERVISOR,VENDAS"><span class="menu-icon">$</span><span>Caixa</span></a>
+        <a class="menu-item" href="#estoque" data-module="Estoque" data-roles="ADMIN,GERENTE,ESTOQUE"><span class="menu-icon">□</span><span>Estoque</span></a>
+        <a class="menu-item" href="#compras" data-module="Compras" data-roles="ADMIN,GERENTE,FINANCEIRO"><span class="menu-icon">◫</span><span>Compras</span></a>
+        <div class="menu-section">GESTÃO</div>
+        <a class="menu-item" href="#cadastros" data-module="Cadastros" data-roles="ADMIN,GERENTE,FINANCEIRO"><span class="menu-icon">◎</span><span>Cadastros</span></a>
+        <a class="menu-item" href="#financeiro" data-module="Financeiro" data-roles="ADMIN,FINANCEIRO"><span class="menu-icon">◈</span><span>Financeiro</span></a>
+        <a class="menu-item" href="#relatorios" data-module="Relatórios" data-roles="ADMIN,FINANCEIRO"><span class="menu-icon">▥</span><span>Relatórios</span></a>
+        <a class="menu-item" href="#configuracoes" data-module="Configurações" data-roles="ADMIN"><span class="menu-icon">⚙</span><span>Configurações</span></a>
+      </nav>
+      <div class="sidebar-bottom"><button id="logout" class="logout" type="button"><span>↪</span> Sair do sistema</button></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar-left"><button class="mobile-menu" id="mobileMenu" type="button" aria-label="Abrir menu">☰</button><div class="topbar-brand"><img src="./styles/logo_azul.png" alt="LA Sistemas ERP"></div><div class="breadcrumb"><span>LA Sistemas</span><b>/</b><strong id="pageTitle">Dashboard</strong></div></div>
+        <div class="top-actions"><span class="system-status"><i></i> Sistema online</span><div class="user"><div class="avatar" id="avatar">US</div><div><strong id="userName">Usuário</strong><small id="userRole">Sessão</small></div></div></div>
+      </header>
+      <main class="content" id="content">
+        <img class="watermark" src="./styles/logo_azul.png" alt="" aria-hidden="true">
+        <section class="welcome"><div><span class="eyebrow">VISÃO GERAL</span><h1>Dashboard</h1><p>Bem-vindo ao LA Sistemas ERP.</p></div><div class="date-card" id="currentDate"></div></section>
+        <section class="cards" aria-label="Resumo do sistema"><article><span>Vendas do dia</span><strong>R$ 0,00</strong><small>Sem movimentações</small></article><article><span>Caixa</span><strong>Fechado</strong><small>Aguardando abertura</small></article><article><span>Estoque</span><strong>0</strong><small>Produtos cadastrados</small></article><article><span>Contas a receber</span><strong>R$ 0,00</strong><small>Visão financeira</small></article></section>
+        <section class="panel"><div><span class="eyebrow">LA SISTEMAS ERP</span><h2>Ambiente de gestão</h2><p>A estrutura visual está preparada para receber os módulos reais conectados às APIs oficiais do backend.</p></div><div class="check-list"><span>✓ Autenticação real</span><span>✓ Permissões do backend</span><span>✓ APIs oficiais</span><span>✓ Documentação de continuidade</span></div></section>
+      </main>
+    </div>
+  </div>
+  <script src="./js/api.js"></script>
+  <script src="./js/app-shell.js"></script>
+</body>
+</html>
