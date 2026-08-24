@@ -69,21 +69,20 @@ CUSTOMER_EMAIL="cad-cliente-${RUN_ID}@example.com"
 CUSTOMER_DOC="CAD-${RUN_KEY}"
 SUPPLIER_DOC="SUP-${RUN_KEY}"
 probe_create "POST /customers" 201 /tmp/cad-customer.json \
-  curl "${ADMIN_AUTH[@]}" -X POST -H 'Content-Type: application/json' \
+  "${ADMIN_AUTH[@]}" -X POST -H 'Content-Type: application/json' \
   -d "{\"name\":\"Cliente Cadastro $RUN_KEY\",\"document\":\"$CUSTOMER_DOC\",\"email\":\"$CUSTOMER_EMAIL\",\"phone\":\"21988880000\"}" \
   "$BASE_URL/customers"
 CUSTOMER_ID=$(jq -r '.customer.id' /tmp/cad-customer.json)
 
-a=0
 probe_create "POST /suppliers" 201 /tmp/cad-supplier.json \
-  curl "${ADMIN_AUTH[@]}" -X POST -H 'Content-Type: application/json' \
+  "${ADMIN_AUTH[@]}" -X POST -H 'Content-Type: application/json' \
   -d "{\"name\":\"Fornecedor Cadastro $RUN_KEY\",\"document\":\"$SUPPLIER_DOC\",\"email\":\"sup-$RUN_KEY@example.com\",\"phone\":\"21988880001\"}" \
   "$BASE_URL/suppliers"
 SUPPLIER_ID=$(jq -r '.supplier.id' /tmp/cad-supplier.json)
 
 PRODUCT_CODE="CAD-${RUN_KEY}"
 probe_create "POST /products" 201 /tmp/cad-product.json \
-  curl "${ADMIN_AUTH[@]}" -X POST -H 'Content-Type: application/json' \
+  "${ADMIN_AUTH[@]}" -X POST -H 'Content-Type: application/json' \
   -d "{\"code\":\"$PRODUCT_CODE\",\"name\":\"Produto Cadastro $RUN_KEY\",\"unit\":\"UN\",\"cost\":5,\"salePrice\":10,\"profitMarginPct\":100}" \
   "$BASE_URL/products"
 PRODUCT_ID=$(jq -r '.product.id' /tmp/cad-product.json)
