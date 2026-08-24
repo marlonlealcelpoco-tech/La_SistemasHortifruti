@@ -2,37 +2,30 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://127.0.0.1:3000}"
-AUTH_TOKEN=""
 EMAIL="${ADMIN_EMAIL:-admin@example.com}"
 PASSWORD="${ADMIN_PASSWORD:-Admin1234}"
 BOOTSTRAP_TOKEN="${BOOTSTRAP_TOKEN:?BOOTSTRAP_TOKEN must be set}"
+RUN_ID="${GITHUB_RUN_ID:-local}-$(date +%s%N)"
+PRODUCT_CODE="E2E-${RUN_ID:0:20}"
+PRODUCT_NAME="Produto Integração E2E ${RUN_ID:0:12}"
+SUPPLIER_DOC="E2E-${RUN_ID:0:20}"
 
-api() {
-  curl -sS --fail-with-body "$@"
-}
-
-json() {
-  jq -r "$1"
-}
+api() { curl -sS --fail-with-body "$@"; }
+json() { jq -r "$1"; }
 
 echo "1) Health check"
 api "$BASE_URL/health" | tee /tmp/erp-health.json
 jq -e '.status == "ok"' /tmp/erp-health.json >/dev/null
 
 echo "2) Verify/bootstrap administrator"
-SETUP_STATUS=$(curl -sS -o /tmp/erp-setup.json -w '%{http_code}' \
-  -H 'Content-Type: application/json' \
+SETUP_STATUS=$(curl -sS -o /tmp/erp-setup.json -w '%{http_code}' -H 'Content-Type: application/json' \
   -d "{\"name\":\"Integration Admin\",\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"bootstrapToken\":\"$BOOTSTRAP_TOKEN\"}" \
   "$BASE_URL/auth/setup" || true)
 cat /tmp/erp-setup.json
-if [[ "$SETUP_STATUS" != "201" && "$SETUP_STATUS" != "409" ]]; then
-  echo "Unexpected setup status: $SETUP_STATUS"
-  exit 1
-fi
+[[ "$SETUP_STATUS" == "200" || "$SETUP_STATUS" == "201" || "$SETUP_STATUS" == "409" ]]
 
 echo "3) Login"
-api -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" \
+api -H 'Content-Type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" \
   "$BASE_URL/auth/login" > /tmp/erp-login.json
 cat /tmp/erp-login.json
 AUTH_TOKEN=$(json '.token' < /tmp/erp-login.json)
@@ -40,20 +33,27 @@ test -n "$AUTH_TOKEN" && test "$AUTH_TOKEN" != "null"
 AUTH=(-H "Authorization: Bearer $AUTH_TOKEN")
 
 echo "4) Create supplier"
-api "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d '{"name":"Fornecedor Integração E2E","document":"E2E-001","email":"fornecedor-e2e@example.com","phone":"21999999999"}' \
-  "$BASE_URL/suppliers" > /tmp/erp-supplier.json
+SUPPLIER_STATUS=$(curl -sS -o /tmp/erp-supplier.json -w '%{http_code}' "${AUTH[@]}" -H 'Content-Type: application/json' \
+  -d "{\"name\":\"Fornecedor Integração E2E $RUN_ID\",\"document\":\"$SUPPLIER_DOC\",\"email\":\"fornecedor-e2e-$RUN_ID@example.com\",\"phone\":\"21999999999\"}" \
+  "$BASE_URL/suppliers" || true)
+cat /tmp/erp-supplier.json
+echo "Supplier HTTP status: $SUPPLIER_STATUS"
+if [[ "$SUPPLIER_STATUS" != "200" && "$SUPPLIER_STATUS" != "201" ]]; then exit 1; fi
 SUPPLIER_ID=$(json '.supplier.id' < /tmp/erp-supplier.json)
 test "$SUPPLIER_ID" != "null"
 
 echo "5) Create product"
-api "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d '{"code":"E2E-001","name":"Produto Integração E2E","unit":"UN","cost":8,"salePrice":12,"profitMarginPct":50}' \
-  "$BASE_URL/products" > /tmp/erp-product.json
+PRODUCT_STATUS=$(curl -sS -o /tmp/erp-product.json -w '%{http_code}' "${AUTH[@]}" -H 'Content-Type: application/json' \
+  -d "{\"code\":\"$PRODUCT_CODE\",\"name\":\"$PRODUCT_NAME\",\"unit\":\"UN\",\"cost\":8,\"salePrice\":12,\"profitMarginPct\":50}" \
+  "$BASE_URL/products" || true)
 cat /tmp/erp-product.json
+echo "Product HTTP status: $PRODUCT_STATUS"
+if [[ "$PRODUCT_STATUS" != "201" ]]; then
+  echo "Create product failed; response above is the actual backend error."
+  exit 1
+fi
 PRODUCT_ID=$(json '.product.id' < /tmp/erp-product.json)
 test "$PRODUCT_ID" != "null"
-# PostgreSQL NUMERIC values are serialized as strings and may be formatted as 0.00.
 jq -e '(.product.quantity | tonumber) == 0' /tmp/erp-product.json >/dev/null
 
 echo "6) Create purchase draft: 10 units at R$8"
@@ -68,8 +68,7 @@ PURCHASE_ITEM_ID=$(json '.items[0].id' < /tmp/erp-purchase.json)
 test "$PURCHASE_ITEM_ID" != "null"
 
 echo "7) Confirm purchase and enter stock"
-api "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d '{"salePriceUpdates":[]}' \
+api "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"salePriceUpdates":[]}' \
   "$BASE_URL/purchases/$PURCHASE_ID/confirm" > /tmp/erp-purchase-confirm.json
 cat /tmp/erp-purchase-confirm.json
 jq -e '.purchase.status == "CONFIRMED"' /tmp/erp-purchase-confirm.json >/dev/null
@@ -81,8 +80,7 @@ PAYABLE_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM financial_entrie
 test "$PAYABLE_COUNT" = "1"
 
 echo "8) Open cash with R$100"
-api "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d '{"terminalId":"E2E-TERMINAL","openingAmount":100}' \
+api "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"terminalId":"E2E-TERMINAL","openingAmount":100}' \
   "$BASE_URL/cash-sessions" > /tmp/erp-cash-open.json
 cat /tmp/erp-cash-open.json
 CASH_SESSION_ID=$(json '.cashSession.id' < /tmp/erp-cash-open.json)
@@ -110,8 +108,7 @@ CANCELLATION_EVENT_COUNT=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM cash_
 test "$CANCELLATION_EVENT_COUNT" = "1"
 
 echo "11) Close cash at opening amount R$100"
-api "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d '{"closingAmount":100}' \
+api "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"closingAmount":100}' \
   "$BASE_URL/cash-sessions/$CASH_SESSION_ID/close" > /tmp/erp-cash-close.json
 cat /tmp/erp-cash-close.json
 jq -e '.report.totals.expectedCash == 100 or (.report.totals.expectedCash | tonumber) == 100' /tmp/erp-cash-close.json >/dev/null
