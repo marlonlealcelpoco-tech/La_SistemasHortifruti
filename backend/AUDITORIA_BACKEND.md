@@ -39,25 +39,95 @@ A migration `backend/src/finance/migrations/002_official_roles.sql` cadastra:
 - `ESTOQUE`
 - `FINANCEIRO`
 
-**Observação:** a regra funcional definida para o projeto usa os conceitos VENDEDOR e ESTOQUISTA. No código atual os nomes são `VENDAS` e `ESTOQUE`. Isso será tratado explicitamente na auditoria de autorização, sem renomear automaticamente.
+**Observação:** a regra funcional usa os conceitos VENDEDOR e ESTOQUISTA. No código os nomes são `VENDAS` e `ESTOQUE`.
 
-## Matriz funcional-alvo para validação
+## MATRIZ OFICIAL DE PERMISSÕES — BASEADA NO CÓDIGO ATUAL
 
-| Área | VENDEDOR/VENDAS | SUPERVISOR | ESTOQUISTA/ESTOQUE | FINANCEIRO | ADMIN |
-|---|---:|---:|---:|---:|---:|
-| PDV/venda | sim | sim | não | não | sim |
-| Venda à vista | sim | sim | não | não | sim |
-| Venda a prazo | sim | sim | não | não | sim |
-| Recebimento de cliente no caixa | sim | sim | não | não | sim |
-| Cancelamento de venda | não | sim | não | não | sim |
-| Cancelamento de item | não | sim | não | não | sim |
-| Autorização de desconto | não | sim | não | não | sim |
-| Autorização de troca | não | sim | não | não | sim |
-| Operações de estoque | não | consulta conforme regra | sim | não | sim |
-| Contas a pagar/receber administrativo | não | não | não | sim | sim |
-| Usuários/roles | não | não | não | não | sim |
+Esta seção é a referência rápida da auditoria. **Não alterar esta matriz sem decisão explícita de negócio.** Ela representa exatamente as políticas atualmente definidas em `backend/src/auth/role-policy.ts`.
 
-Esta tabela é o alvo funcional definido para os testes; o código existente será comparado contra ela.
+| Política / Área | GERENTE | FINANCEIRO | SUPERVISOR | VENDAS (Vendedor) | ESTOQUE (Estoquista) | ADMIN |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| `MANAGER` / gestão | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `FINANCE` / financeiro administrativo | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ |
+| `CASH_OPERATORS` / operações de caixa | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ |
+| `CASH_REPORTS` / relatórios de caixa | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ |
+| `CUSTOMER_MAINTENANCE` / clientes | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
+| `PRODUCT_MAINTENANCE` / produtos | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
+| `PURCHASE_MAINTENANCE` / compras | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
+| `INVENTORY_MAINTENANCE` / estoque | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `PDV` / vendas | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ |
+| `SUPERVISOR_AUTHORITY` / autoridade de supervisor | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ |
+| `COST_VIEW` / visualizar custos | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ |
+
+### GERENTE — regra oficial atual
+
+O código permite ao GERENTE:
+
+- gestão (`MANAGER`);
+- operações de caixa;
+- manutenção de clientes;
+- manutenção de produtos;
+- manutenção de compras;
+- manutenção de estoque/inventário;
+- PDV/vendas;
+- autoridade de supervisor;
+- visualização de custos.
+
+O GERENTE **não** está incluído nas políticas `FINANCE` e `CASH_REPORTS`.
+
+**Regra de negócio confirmada pelo projeto:** manter exatamente este parâmetro atual para GERENTE.
+
+### FINANCEIRO — regra oficial atual
+
+O código permite ao FINANCEIRO:
+
+- financeiro administrativo (`FINANCE`);
+- relatórios de caixa (`CASH_REPORTS`);
+- manutenção de clientes;
+- manutenção de produtos;
+- manutenção de compras;
+- visualização de custos.
+
+O FINANCEIRO **não** está incluído nas políticas de:
+
+- operações de caixa (`CASH_OPERATORS`);
+- PDV (`PDV`);
+- estoque (`INVENTORY_MAINTENANCE`);
+- autoridade de supervisor (`SUPERVISOR_AUTHORITY`);
+- gestão (`MANAGER`).
+
+**Regra de negócio confirmada pelo projeto:** manter exatamente este parâmetro atual para FINANCEIRO.
+
+### SUPERVISOR — regra oficial atual
+
+O código permite ao SUPERVISOR:
+
+- operações de caixa (`CASH_OPERATORS`);
+- PDV/vendas (`PDV`);
+- autoridade de supervisor (`SUPERVISOR_AUTHORITY`).
+
+O SUPERVISOR não possui, pela política atual, manutenção administrativa de clientes, produtos ou compras, manutenção de estoque, financeiro administrativo, relatórios de caixa ou visualização de custos.
+
+### VENDAS — regra oficial atual
+
+O código permite ao VENDAS (Vendedor):
+
+- operações de caixa (`CASH_OPERATORS`);
+- PDV/vendas (`PDV`).
+
+O VENDAS não possui, pela política atual, autoridade de supervisor, manutenção de clientes/produtos/compras/estoque, financeiro administrativo, relatórios de caixa ou visualização de custos.
+
+### ESTOQUE — regra oficial atual
+
+O código permite ao ESTOQUE (Estoquista):
+
+- manutenção de estoque/inventário (`INVENTORY_MAINTENANCE`).
+
+O ESTOQUE não possui, pela política atual, operações de caixa, PDV, autoridade de supervisor, manutenção de clientes/produtos/compras, financeiro administrativo, relatórios de caixa ou visualização de custos.
+
+### ADMIN — regra oficial atual
+
+ADMIN está presente em todas as políticas acima e representa o acesso administrativo total.
 
 ## Regras já confirmadas no código
 
@@ -127,9 +197,7 @@ Esta tabela é o alvo funcional definido para os testes; o código existente ser
 
 O código atual cria corretamente a conta a receber quando uma venda usa `CREDIT`, porém o endpoint de recebimento administrativo (`POST /finance/receivables/:id/receive`) está protegido por `ADMIN`/`FINANCEIRO`.
 
-Isso **não comprova ainda a regra desejada pelo projeto** de que o VENDEDOR possa receber a prazo no próprio caixa e que esse recebimento dê baixa automática no Contas a Receber e seja comprovado no fechamento do caixa.
-
-Portanto este fluxo fica marcado como:
+Isso não comprova ainda a regra operacional desejada de que o VENDEDOR possa receber a prazo no próprio caixa e que esse recebimento dê baixa automática no Contas a Receber e seja comprovado no fechamento do caixa.
 
 **STATUS: PENDENTE DE VALIDAÇÃO/IMPLEMENTAÇÃO FUNCIONAL**
 
@@ -157,6 +225,7 @@ Também devem ser testados pagamentos parciais e quitação total.
 - [ ] criação de usuário
 - [ ] troca de roles
 - [ ] cada role positiva/negativa por módulo
+- [ ] validar exatamente a matriz oficial acima
 
 ### C. Cadastros
 - [ ] clientes
