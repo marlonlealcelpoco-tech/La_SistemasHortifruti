@@ -20,6 +20,7 @@ expect_status() {
   test "$status" = "$expected"
 }
 
+# Authentication and authorization boundaries
 echo "1) Unauthenticated protected endpoint must be rejected"
 expect_status 401 "$BASE_URL/products"
 
@@ -59,6 +60,7 @@ echo "6) Restore user role to VENDAS"
 curl --fail --silent "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
   -d '{"roles":["VENDAS"]}' "$BASE_URL/users/$VENDOR_ID/roles" >/dev/null
 
+# Customers
 echo "7) Customer CRUD/search/status"
 CUSTOMER_EMAIL="cliente-${RUN_ID}@example.com"
 curl --fail --silent --show-error "${AUTH[@]}" -H 'Content-Type: application/json' \
@@ -78,6 +80,7 @@ jq -e '.customer.active == false' /tmp/erp-customer-inactive.json >/dev/null
 curl --fail --silent "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' \
   -d '{"active":true}' "$BASE_URL/customers/$CUSTOMER_ID/status" >/dev/null
 
+# Supplier CRUD/search/status
 echo "8) Supplier CRUD/search/status"
 SUPPLIER_EMAIL="supplier-${RUN_ID}@example.com"
 curl --fail --silent --show-error "${AUTH[@]}" -H 'Content-Type: application/json' \
@@ -95,6 +98,7 @@ curl --fail --silent "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' \
 curl --fail --silent "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' \
   -d '{"active":true}' "$BASE_URL/suppliers/$SUPPLIER_ID/status" >/dev/null
 
+# Product maintenance
 echo "9) Product list/update/status/minimum-stock"
 PRODUCT_CODE="COMP-${RUN_ID:0:20}"
 curl --fail --silent --show-error "${AUTH[@]}" -H 'Content-Type: application/json' \
@@ -116,6 +120,7 @@ curl --fail --silent "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' \
 curl --fail --silent "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' \
   -d '{"active":true}' "$BASE_URL/products/$PRODUCT_ID/status" >/dev/null
 
+# Inventory movements
 echo "10) Inventory movement, insufficient stock and history"
 curl --fail --silent --show-error "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d "{\"productId\":$PRODUCT_ID,\"type\":\"ADJUSTMENT\",\"quantity\":10,\"reference\":\"E2E-ADJ\",\"notes\":\"Entrada de teste\"}" \
@@ -129,6 +134,7 @@ expect_status 409 "${AUTH[@]}" -H 'Content-Type: application/json' -d "{\"produc
 curl --fail --silent "${AUTH[@]}" "$BASE_URL/products/$PRODUCT_ID/movements" > /tmp/erp-movements.json
 jq -e '.movements | length >= 2' /tmp/erp-movements.json >/dev/null
 
+# Purchase validation and XML parser error path
 echo "11) Purchase validation and XML error path"
 expect_status 400 "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"xml":"not-valid-xml-12345678901234567890"}' "$BASE_URL/purchases/xml/preview"
 expect_status 400 "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"xml":"not-valid-xml-12345678901234567890","supplierId":1,"items":[]}' "$BASE_URL/purchases/import-xml"
@@ -139,12 +145,12 @@ curl --fail --silent "${AUTH[@]}" "$BASE_URL/cash-reports/daily?date=$TODAY" > /
 jq -e '.consolidated.expectedCash >= 0' /tmp/erp-daily-cash.json >/dev/null
 
 echo "13) Sales validation rules"
-expect_status 400 "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d '{"cashSessionId":1,"items":[{"productId":1,"quantity":1,"unitPrice":10}],"payments":[{"paymentMethod":"CREDIT","amount":10]}' \
-  "$BASE_URL/sales"
-expect_status 400 "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d '{"cashSessionId":1,"items":[{"productId":1,"quantity":1,"unitPrice":10}],"payments":[{"paymentMethod":"CASH","amount":9}]}' \
-  "$BASE_URL/sales"
+SALES_INVALID_CREDIT_JSON='{"cashSessionId":1,"items":[{"productId":1,"quantity":1,"unitPrice":10}],"payments":[{"paymentMethod":"CREDIT","amount":10}]}'
+SALES_INVALID_TOTAL_JSON='{"cashSessionId":1,"items":[{"productId":1,"quantity":1,"unitPrice":10}],"payments":[{"paymentMethod":"CASH","amount":9}]}'
+printf '%s' "$SALES_INVALID_CREDIT_JSON" > /tmp/erp-invalid-credit.json
+printf '%s' "$SALES_INVALID_TOTAL_JSON" > /tmp/erp-invalid-total.json
+expect_status 400 "${AUTH[@]}" -H 'Content-Type: application/json' --data-binary @/tmp/erp-invalid-credit.json "$BASE_URL/sales"
+expect_status 400 "${AUTH[@]}" -H 'Content-Type: application/json' --data-binary @/tmp/erp-invalid-total.json "$BASE_URL/sales"
 
 echo "14) Admin self-modification protections"
 expect_status 400 "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
