@@ -26,7 +26,7 @@ login() {
 
 create_user() {
   local role="$1" email="$2" password="$3" out="$4"
-  curl --fail --silent --show-error "$ADMIN_AUTH" -H 'Content-Type: application/json' \
+  curl --fail --silent --show-error "${ADMIN_AUTH[@]}" -H 'Content-Type: application/json' \
     -d "{\"name\":\"E2E $role\",\"email\":\"$email\",\"password\":\"$password\",\"roles\":[\"$role\"]}" \
     "$BASE_URL/users" > "$out"
   jq -e '.user.id != null' "$out" >/dev/null
@@ -38,7 +38,6 @@ ADMIN_TOKEN=$(jq -r '.token' "$ADMIN_JSON")
 ADMIN_AUTH=(-H "Authorization: Bearer $ADMIN_TOKEN")
 
 echo "MÓDULO 2 — CADASTROS / AUTORIZAÇÃO POR PERFIL"
-
 echo "1) Create test users for VENDAS, SUPERVISOR, ESTOQUE, FINANCEIRO and GERENTE"
 VENDAS_EMAIL="cad-vendas-${RUN_ID}@example.com"
 SUP_EMAIL="cad-supervisor-${RUN_ID}@example.com"
