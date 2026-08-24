@@ -61,6 +61,14 @@ jobs:
             echo "Applying $file"
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$file"
           done
+      - name: Verify official authorization role catalog
+        run: |
+          set -euo pipefail
+          EXPECTED='ADMIN GERENTE SUPERVISOR VENDAS ESTOQUE FINANCEIRO'
+          ACTUAL=$(psql "$DATABASE_URL" -tAc "SELECT string_agg(name, ' ' ORDER BY name) FROM roles WHERE name IN ('ADMIN','GERENTE','SUPERVISOR','VENDAS','ESTOQUE','FINANCEIRO');")
+          echo "Expected roles: $EXPECTED"
+          echo "Actual roles:   $ACTUAL"
+          test "$ACTUAL" = 'ADMIN ESTOQUE FINANCEIRO GERENTE SUPERVISOR VENDAS'
       - name: Reset CI users
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'TRUNCATE TABLE users CASCADE;'
       - name: Typecheck
@@ -107,7 +115,7 @@ jobs:
           echo '2) Bootstrap administrator'
           SETUP_STATUS=$(curl -sS -o /tmp/setup.json -w '%{http_code}' \
             -H 'Content-Type: application/json' \
-            -d '{"name":"Admin","email":"admin@example.com","password":"Admin1234","bootstrapToken":"ci-bootstrap-token-with-at-least-16-chars"}' \
+            -d '{"name":"Admin","email":"Admin@example.com","password":"Admin1234","bootstrapToken":"ci-bootstrap-token-with-at-least-16-chars"}' \
             http://127.0.0.1:3000/auth/setup || true)
           cat /tmp/setup.json
           if [ "$SETUP_STATUS" != "200" ] && [ "$SETUP_STATUS" != "201" ]; then
@@ -143,6 +151,9 @@ jobs:
           cat /tmp/product-updated.json
           grep -q 'Produto CI Atualizado' /tmp/product-updated.json
           echo 'Backend smoke tests passed.'
+      - name: Module 1 - Authentication and hierarchy
+        shell: bash
+        run: bash tests/integration/backend-auth-hierarchy.sh
       - name: Real ERP API integration battery
         shell: bash
         run: bash tests/integration/backend-api-e2e.sh
