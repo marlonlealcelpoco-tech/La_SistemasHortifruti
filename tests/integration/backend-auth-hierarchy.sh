@@ -21,10 +21,8 @@ echo "MÓDULO 1 — AUTENTICAÇÃO E HIERARQUIA"
 
 echo "1) Protected endpoint without token -> 401"
 expect_status 401 "$BASE_URL/products"
-
 echo "2) Invalid login -> 401"
 expect_status 401 -H 'Content-Type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"senha-incorreta\"}" "$BASE_URL/auth/login"
-
 echo "3) Login valid -> token"
 curl --fail --silent --show-error -H 'Content-Type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" "$BASE_URL/auth/login" >/tmp/erp-auth-login.json
 TOKEN=$(json '.token' </tmp/erp-auth-login.json)
@@ -40,9 +38,8 @@ echo "5) Official six-role catalog must exist"
 curl --fail --silent "${AUTH[@]}" "$BASE_URL/users" >/tmp/erp-auth-users.json
 for role in ADMIN GERENTE SUPERVISOR VENDAS ESTOQUE FINANCEIRO; do
   echo "Checking role: $role"
-  jq -e --arg role "$role" '[.users[].roles[]] | index($role) != null' /tmp/erp-auth-users.json >/dev/null || {
+  jq -e --arg role "$role" '[.users[].roles[]] | index($role) != null' /tmp/erp-auth-users.json >/dev/null || \
     echo "Role $role is not represented by current users; role catalog will be validated by role assignment below."
-  }
 done
 
 echo "6) ADMIN creates one test user per official role"
@@ -56,12 +53,8 @@ for role in GERENTE SUPERVISOR VENDAS ESTOQUE FINANCEIRO; do
   echo "$role user id=$id"
 done
 
-echo "7) ADMIN replaces VENDAS user roles with SUPERVISOR"
-VENDOR_EMAIL="e2e-vendas-${RUN_ID}@example.com"
-curl --fail --silent --show-error "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"E2E Vendas\",\"email\":\"$VENDOR_EMAIL\",\"password\":\"Vendas1234\",\"roles\":[\"VENDAS\"]}" \
-  "$BASE_URL/users" >/tmp/erp-vendor.json
-VENDOR_ID=$(json '.user.id' </tmp/erp-vendor.json)
+echo "7) ADMIN replaces existing VENDAS user roles with VENDAS + SUPERVISOR"
+VENDOR_ID=$(json '.user.id' </tmp/erp-user-VENDAS.json)
 STATUS=$(curl -sS -o /tmp/erp-role-replace.json -w '%{http_code}' "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
   -d '{"roles":["VENDAS","SUPERVISOR"]}' "$BASE_URL/users/$VENDOR_ID/roles" || true)
 echo "Role replacement HTTP status: $STATUS"
@@ -76,21 +69,17 @@ curl --fail --silent "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
 echo "9) Invalid role is rejected by API validation"
 expect_status 400 "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
   -d '{"roles":["NAO_EXISTE"]}' "$BASE_URL/users/$VENDOR_ID/roles"
-
 echo "10) ADMIN cannot alter own roles"
 expect_status 400 "${AUTH[@]}" -X PUT -H 'Content-Type: application/json' \
   -d '{"roles":["GERENTE"]}' "$BASE_URL/users/$ADMIN_ID/roles"
-
 echo "11) ADMIN cannot deactivate own access"
 expect_status 400 "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' \
   -d '{"active":false}' "$BASE_URL/users/$ADMIN_ID/status"
-
 echo "12) Test users are deactivated"
 for file in /tmp/erp-user-GERENTE.json /tmp/erp-user-SUPERVISOR.json /tmp/erp-user-VENDAS.json /tmp/erp-user-ESTOQUE.json /tmp/erp-user-FINANCEIRO.json; do
   id=$(json '.user.id' <"$file")
   curl --fail --silent "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' -d '{"active":false}' "$BASE_URL/users/$id/status" >/dev/null
 done
-curl --fail --silent "${AUTH[@]}" -X PATCH -H 'Content-Type: application/json' -d '{"active":false}' "$BASE_URL/users/$VENDOR_ID/status" >/dev/null
 
 echo
 echo "AUTHENTICATION AND HIERARCHY MODULE PASSED."
