@@ -37,7 +37,6 @@ api -H 'Content-Type: application/json' \
 cat /tmp/erp-login.json
 AUTH_TOKEN=$(json '.token' < /tmp/erp-login.json)
 test -n "$AUTH_TOKEN" && test "$AUTH_TOKEN" != "null"
-
 AUTH=(-H "Authorization: Bearer $AUTH_TOKEN")
 
 echo "4) Create supplier"
@@ -51,14 +50,17 @@ echo "5) Create product"
 api "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d '{"code":"E2E-001","name":"Produto Integração E2E","unit":"UN","cost":8,"salePrice":12,"profitMarginPct":50}' \
   "$BASE_URL/products" > /tmp/erp-product.json
+cat /tmp/erp-product.json
 PRODUCT_ID=$(json '.product.id' < /tmp/erp-product.json)
 test "$PRODUCT_ID" != "null"
-jq -e '.product.quantity == "0" or .product.quantity == 0' /tmp/erp-product.json >/dev/null
+# PostgreSQL NUMERIC values are serialized as strings and may be formatted as 0.00.
+jq -e '(.product.quantity | tonumber) == 0' /tmp/erp-product.json >/dev/null
 
 echo "6) Create purchase draft: 10 units at R$8"
 api "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d "{\"supplierId\":$SUPPLIER_ID,\"items\":[{\"productId\":$PRODUCT_ID,\"quantity\":10,\"unitCost\":8}]}" \
   "$BASE_URL/purchases" > /tmp/erp-purchase.json
+cat /tmp/erp-purchase.json
 PURCHASE_ID=$(json '.purchase.id' < /tmp/erp-purchase.json)
 test "$PURCHASE_ID" != "null"
 jq -e '.purchase.status == "DRAFT" and (.purchase.total | tonumber) == 80' /tmp/erp-purchase.json >/dev/null
@@ -69,6 +71,7 @@ echo "7) Confirm purchase and enter stock"
 api "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d '{"salePriceUpdates":[]}' \
   "$BASE_URL/purchases/$PURCHASE_ID/confirm" > /tmp/erp-purchase-confirm.json
+cat /tmp/erp-purchase-confirm.json
 jq -e '.purchase.status == "CONFIRMED"' /tmp/erp-purchase-confirm.json >/dev/null
 STOCK_AFTER_PURCHASE=$(psql "$DATABASE_URL" -tAc "SELECT quantity FROM stock WHERE product_id = $PRODUCT_ID;")
 COST_AFTER_PURCHASE=$(psql "$DATABASE_URL" -tAc "SELECT cost FROM products WHERE id = $PRODUCT_ID;")
@@ -81,6 +84,7 @@ echo "8) Open cash with R$100"
 api "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d '{"terminalId":"E2E-TERMINAL","openingAmount":100}' \
   "$BASE_URL/cash-sessions" > /tmp/erp-cash-open.json
+cat /tmp/erp-cash-open.json
 CASH_SESSION_ID=$(json '.cashSession.id' < /tmp/erp-cash-open.json)
 test "$CASH_SESSION_ID" != "null"
 
@@ -88,6 +92,7 @@ echo "9) Sell 6 units for R$12 each = R$72 cash"
 api "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d "{\"cashSessionId\":$CASH_SESSION_ID,\"items\":[{\"productId\":$PRODUCT_ID,\"quantity\":6,\"unitPrice\":12}],\"payments\":[{\"paymentMethod\":\"CASH\",\"amount\":72}]}" \
   "$BASE_URL/sales" > /tmp/erp-sale.json
+cat /tmp/erp-sale.json
 SALE_ID=$(json '.sale.id' < /tmp/erp-sale.json)
 test "$SALE_ID" != "null"
 STOCK_AFTER_SALE=$(psql "$DATABASE_URL" -tAc "SELECT quantity FROM stock WHERE product_id = $PRODUCT_ID;")
@@ -97,6 +102,7 @@ test "$SALE_EVENT_COUNT" = "1"
 
 echo "10) Cancel sale as supervisor/admin and restore stock/cash"
 api "${AUTH[@]}" -X POST "$BASE_URL/sales/$SALE_ID/cancel" > /tmp/erp-sale-cancel.json
+cat /tmp/erp-sale-cancel.json
 jq -e '.sale.status == "CANCELLED"' /tmp/erp-sale-cancel.json >/dev/null
 STOCK_AFTER_CANCEL=$(psql "$DATABASE_URL" -tAc "SELECT quantity FROM stock WHERE product_id = $PRODUCT_ID;")
 [[ "$STOCK_AFTER_CANCEL" == "10.00" || "$STOCK_AFTER_CANCEL" == "10" ]]
@@ -107,6 +113,7 @@ echo "11) Close cash at opening amount R$100"
 api "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d '{"closingAmount":100}' \
   "$BASE_URL/cash-sessions/$CASH_SESSION_ID/close" > /tmp/erp-cash-close.json
+cat /tmp/erp-cash-close.json
 jq -e '.report.totals.expectedCash == 100 or (.report.totals.expectedCash | tonumber) == 100' /tmp/erp-cash-close.json >/dev/null
 CASH_STATUS=$(psql "$DATABASE_URL" -tAc "SELECT status FROM cash_sessions WHERE id = $CASH_SESSION_ID;")
 test "$CASH_STATUS" = "CLOSED"
