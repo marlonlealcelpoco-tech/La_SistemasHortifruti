@@ -56,6 +56,10 @@ export function buildApp(environment: Environment, pool: Pool) {
     if (error instanceof ZodError) return reply.code(400).send({ message: "Dados inválidos.", details: error.issues });
     if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") return reply.code(409).send({ message: "Já existe um registro com estes dados." });
     app.log.error(error);
+    if (environment.NODE_ENV === "test") {
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.code(500).send({ message: "Erro interno do servidor.", details: message });
+    }
     return reply.code(500).send({ message: "Erro interno do servidor." });
   });
   return app;
