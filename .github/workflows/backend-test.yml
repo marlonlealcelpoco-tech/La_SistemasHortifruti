@@ -124,7 +124,7 @@ jobs:
           fi
           echo '3) Login with Admin / Admin1234'
           curl --fail --silent --show-error -H 'Content-Type: application/json' \
-            -d '{"email":"admin@example.com","password":"Admin1234"}' \
+            -d '{"email":"Admin@example.com","password":"Admin1234"}' \
             http://127.0.0.1:3000/auth/login > /tmp/login.json
           cat /tmp/login.json
           LOGIN_TOKEN="$(jq -r '.token' /tmp/login.json)"
@@ -163,3 +163,6 @@ jobs:
       - name: Module 2 - Cadastros authorization matrix
         shell: bash
         run: bash tests/integration/backend-cadastros-authorization.sh
+      - name: Module 2 - Product fiscal data
+        shell: bash
+        run: bash tests/integration/backend-product-fiscal.sh
