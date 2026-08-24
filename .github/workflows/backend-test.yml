@@ -67,6 +67,12 @@ jobs:
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$file"
           done
 
+      - name: Reset CI users
+        run: |
+          # The CI database is disposable. Some migrations may seed an initial user,
+          # while /auth/setup is intentionally allowed only when users is empty.
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'TRUNCATE TABLE users CASCADE;'
+
       - name: Typecheck
         working-directory: backend
         run: npm run typecheck
