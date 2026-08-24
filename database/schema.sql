@@ -56,6 +56,20 @@ CREATE TABLE products (
     unit VARCHAR(20) NOT NULL DEFAULT 'UN',
     cost DECIMAL(15,2) NOT NULL DEFAULT 0,
     sale_price DECIMAL(15,2) NOT NULL DEFAULT 0,
+    ncm VARCHAR(8),
+    cest VARCHAR(7),
+    cfop VARCHAR(4),
+    tax_code_type VARCHAR(5),
+    tax_code VARCHAR(4),
+    origin SMALLINT,
+    gtin VARCHAR(14),
+    gtin_trib VARCHAR(14),
+    tax_unit VARCHAR(20),
+    icms_rate DECIMAL(7,4) NOT NULL DEFAULT 0,
+    pis_cst VARCHAR(2),
+    pis_rate DECIMAL(7,4) NOT NULL DEFAULT 0,
+    cofins_cst VARCHAR(2),
+    cofins_rate DECIMAL(7,4) NOT NULL DEFAULT 0,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -135,6 +149,8 @@ CREATE TABLE financial_entries (
 );
 
 CREATE INDEX idx_products_name ON products(name);
+CREATE INDEX idx_products_ncm ON products(ncm);
+CREATE INDEX idx_products_gtin ON products(gtin);
 CREATE INDEX idx_customers_name ON customers(name);
 CREATE INDEX idx_suppliers_name ON suppliers(name);
 CREATE INDEX idx_stock_movements_product ON stock_movements(product_id);
