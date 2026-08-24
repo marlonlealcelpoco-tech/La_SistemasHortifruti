@@ -14,7 +14,7 @@ api() { curl -sS --fail-with-body "$@"; }
 json() { jq -r "$1"; }
 num() { awk '{print $1+0}' <<< "$1"; }
 
-echo "1) Health check"
+ echo "1) Health check"
 api "$BASE_URL/health" | tee /tmp/erp-health.json
 jq -e '.status == "ok"' /tmp/erp-health.json >/dev/null
 
@@ -31,6 +31,10 @@ test -n "$AUTH_TOKEN" && test "$AUTH_TOKEN" != "null"
 AUTH=(-H "Authorization: Bearer $AUTH_TOKEN")
 ADMIN_USER_ID=$(json '.user.id' < /tmp/erp-login.json)
 test "$ADMIN_USER_ID" != "null"
+JWT_SUB=$(printf '%s' "$AUTH_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq -r '.sub')
+echo "Authenticated user ID: $ADMIN_USER_ID"
+echo "JWT sub (seller): $JWT_SUB"
+[[ "$JWT_SUB" == "$ADMIN_USER_ID" ]]
 
 echo "4) Create supplier"
 SUPPLIER_STATUS=$(curl -sS -o /tmp/erp-supplier.json -w '%{http_code}' "${AUTH[@]}" -H 'Content-Type: application/json' -d "{\"name\":\"Fornecedor Integração E2E $RUN_ID\",\"document\":\"$SUPPLIER_DOC\",\"email\":\"fornecedor-e2e-$RUN_ID@example.com\",\"phone\":\"21999999999\"}" "$BASE_URL/suppliers" || true)
@@ -74,9 +78,14 @@ api "${AUTH[@]}" -H 'Content-Type: application/json' -d "{\"terminalId\":\"E2E-T
 cat /tmp/erp-cash-open.json
 CASH_SESSION_ID=$(json '.cashSession.id' < /tmp/erp-cash-open.json)
 test "$CASH_SESSION_ID" != "null"
+CASH_SELLER_ID=$(json '.cashSession.seller_id' < /tmp/erp-cash-open.json)
+echo "Cash session seller_id: $CASH_SELLER_ID"
+[[ "$CASH_SELLER_ID" == "$ADMIN_USER_ID" ]]
+[[ "$CASH_SELLER_ID" == "$JWT_SUB" ]]
 
 echo '9) Sell 6 units for R$12 each = R$72 cash'
-SALE_STATUS=$(curl -sS -o /tmp/erp-sale.json -w '%{http_code}' "${AUTH[@]}" -H 'Content-Type: application/json' -d "{\"cashSessionId\":$CASH_SESSION_ID,\"items\":[{\"productId\":$PRODUCT_ID,\"quantity\":6,\"unitPrice\":12}],\"payments\":[{\"paymentMethod\":\"CASH\",\"amount\":72}]}" "$BASE_URL/sales" || true)
+echo "Sale identity check: JWT seller=$JWT_SUB | cash seller=$CASH_SELLER_ID | authenticated user=$ADMIN_USER_ID"
+SALE_STATUS=$(curl -sS -o /tmp/erp-sale.json -w '%{http_code}' "${AUTH[@]}" -H 'Content-Type: application/json' -d "{\"cashSessionId\":$CASH_SESSION_ID,\"sellerId\":$ADMIN_USER_ID,\"items\":[{\"productId\":$PRODUCT_ID,\"quantity\":6,\"unitPrice\":12}],\"payments\":[{\"paymentMethod\":\"CASH\",\"amount\":72}]}" "$BASE_URL/sales" || true)
 cat /tmp/erp-sale.json
 echo "Sale HTTP status: $SALE_STATUS"
 if [[ "$SALE_STATUS" != "200" && "$SALE_STATUS" != "201" ]]; then echo "Create sale failed; response above is the actual backend error."; exit 1; fi
