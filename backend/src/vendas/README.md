@@ -1,17 +1,15 @@
 # Vendas / PDV
 
-Módulo ativo migrado de `src/sales` para `src/vendas`.
+Módulo ativo em `src/vendas`; o legado `src/sales` foi removido após validação do CI.
 
-## Regras implementadas
-
+## Regras
 - Venda vinculada ao usuário/caixa aberto.
-- Validação e baixa de estoque dentro da mesma transação da venda.
-- Venda à vista gera movimento no caixa.
+- Validação e baixa de estoque na mesma transação.
+- Venda à vista movimenta caixa.
 - Venda a prazo gera Conta a Receber.
-- Recebimentos podem ser parciais e são feitos pelo caixa, atualizando simultaneamente Conta a Receber, caixa e financeiro.
-- A venda pode escolher documento `FISCAL` ou `GERENCIAL`.
-- NFC-e é desacoplada do financeiro: a venda continua confirmada mesmo se a NFC-e for rejeitada.
-- Rejeições fiscais ficam pendentes com código, mensagem e tentativas para retransmissão pelo emissor fiscal.
-- Fechamento do caixa mantém conferência, sangria, suprimentos e diferença entre saldo esperado e contado.
+- Recebimentos parciais são feitos pelo caixa e atualizam Conta a Receber, caixa e financeiro.
+- A venda pode ser fiscal ou gerencial sem alterar o fluxo financeiro.
+- NFC-e rejeitada permanece pendente com histórico para retransmissão, sem duplicar venda ou movimentos.
+- Caixa contempla abertura, sangria, suprimento, fechamento e conferência.
 
-A emissão efetiva junto à SEFAZ permanece como integração externa; o backend já possui o estado e o histórico necessários para a retransmissão sem duplicar a venda ou os movimentos financeiros.
+A emissão efetiva junto à SEFAZ permanece como integração externa.
