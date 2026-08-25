@@ -70,7 +70,7 @@ export class SalesRepository {
   }
 
   async registerFiscalResult(input: { saleId: number; status: "AUTHORIZED" | "REJECTED"; errorCode?: string | null; errorMessage?: string | null; accessKey?: string | null; protocol?: string | null; xmlRaw?: string | null }): Promise<Record<string, unknown>> {
-    const result = await this.pool.query(`UPDATE sale_fiscal_documents SET status = $2, attempts = attempts + 1, last_attempt_at = CURRENT_TIMESTAMP, error_code = $3, error_message = $4, access_key = $5, protocol = $6, xml_raw = $7, authorized_at = CASE WHEN $2 = 'AUTHORIZED' THEN CURRENT_TIMESTAMP ELSE authorized_at END, updated_at = CURRENT_TIMESTAMP WHERE sale_id = $1 RETURNING *`, [input.saleId, input.status, input.errorCode ?? null, input.errorMessage ?? null, input.accessKey ?? null, input.protocol ?? null, input.xmlRaw ?? null]);
+    const result = await this.pool.query(`UPDATE sale_fiscal_documents SET status = $2::text, attempts = attempts + 1, last_attempt_at = CURRENT_TIMESTAMP, error_code = $3, error_message = $4, access_key = $5, protocol = $6, xml_raw = $7, authorized_at = CASE WHEN $2::text = 'AUTHORIZED' THEN CURRENT_TIMESTAMP ELSE authorized_at END, updated_at = CURRENT_TIMESTAMP WHERE sale_id = $1 RETURNING *`, [input.saleId, input.status, input.errorCode ?? null, input.errorMessage ?? null, input.accessKey ?? null, input.protocol ?? null, input.xmlRaw ?? null]);
     if (!result.rows[0]) throw new Error("Documento fiscal da venda não encontrado.");
     return result.rows[0];
   }
