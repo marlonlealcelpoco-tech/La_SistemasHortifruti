@@ -1,0 +1,1 @@
+Legacy finance directory is being removed after migration to src/financeiro.
