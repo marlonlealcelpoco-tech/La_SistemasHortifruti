@@ -1,1 +1,1 @@
-Trigger CI after Estoque migration.
+Trigger CI after Compras migration validation.
