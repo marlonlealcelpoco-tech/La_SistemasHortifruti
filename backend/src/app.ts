@@ -21,9 +21,9 @@ import { PurchaseRepository } from "./compras/repository.js";
 import { registerPurchaseRoutes } from "./compras/routes.js";
 import { FinanceRepository } from "./financeiro/repository.js";
 import { registerFinanceRoutes } from "./financeiro/routes.js";
-import { SalesRepository } from "./sales/repository.js";
-import { SupervisorActionsRepository } from "./sales/supervisor-actions.js";
-import { registerSalesRoutes } from "./sales/routes.js";
+import { SalesRepository } from "./vendas/repository.js";
+import { SupervisorActionsRepository } from "./vendas/supervisor-actions.js";
+import { registerSalesRoutes } from "./vendas/routes.js";
 import { registerUserRoutes } from "./cadastro/usuarios/routes.js";
 
 declare module "fastify" { interface FastifyInstance { authenticate(request: FastifyRequest): Promise<void>; } }
