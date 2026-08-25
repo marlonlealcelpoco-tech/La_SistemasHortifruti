@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireRoles } from "../auth/authorization.js";
 import { UserRepository } from "../auth/user-repository.js";
 import { ROLE_POLICY } from "../auth/role-policy.js";
-import { ProductRepository } from "../products/repository.js";
+import { ProductRepository } from "../cadastro/produtos/repository.js";
 import { parseNfeXml } from "./xml-parser.js";
 import { PurchaseRepository, type PurchaseItemInput } from "./repository.js";
 
