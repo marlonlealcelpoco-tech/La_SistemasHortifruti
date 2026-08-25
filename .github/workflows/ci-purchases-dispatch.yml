@@ -1,0 +1,21 @@
+name: CI Purchases Dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch/ref to validate'
+        required: false
+        default: 'refactor/backend-modular'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Run backend CI
+        run: |
+          cd backend
+          npm ci
+          npm run typecheck
+          npm test
