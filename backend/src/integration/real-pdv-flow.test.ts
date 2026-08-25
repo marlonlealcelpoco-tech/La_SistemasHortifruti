@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Pool } from "pg";
 import { CustomerRepository } from "../cadastro/clientes/repository.js";
 import { SupplierRepository } from "../cadastro/fornecedores/repository.js";
-import { ProductRepository } from "../products/repository.js";
+import { ProductRepository } from "../cadastro/produtos/repository.js";
 import { PurchaseRepository } from "../purchases/repository.js";
 import { CashRepository } from "../cash/repository.js";
 import { SalesRepository } from "../sales/repository.js";
