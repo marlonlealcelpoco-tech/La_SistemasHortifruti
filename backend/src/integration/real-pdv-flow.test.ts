@@ -9,7 +9,7 @@ import { CashRepository } from "../cash/repository.js";
 import { SalesRepository } from "../sales/repository.js";
 import { SalesReturnRepository } from "../sales/returns.js";
 import { StoreCreditRepository } from "../customers/store-credit.js";
-import { FinanceRepository } from "../finance/repository.js";
+import { FinanceRepository, type FinancialEntry } from "../financeiro/repository.js";
 
 test("real backend flow: purchase -> stock -> credit sale -> partial/full receipt -> return credit -> new sale -> cash close", async (t) => {
   const pool = new Pool({
@@ -78,6 +78,6 @@ test("real backend flow: purchase -> stock -> credit sale -> partial/full receip
   assert.equal(Number(afterCreditSale.rows[0].quantity), 4);
 
   const pending = await finance.list("RECEIVABLE", "PENDING");
-  const saleReceivable = pending.find((entry) => entry.sale_id === creditSale.id);
+  const saleReceivable = pending.find((entry: FinancialEntry) => entry.sale_id === creditSale.id);
   assert.ok(saleReceivable);
 });
