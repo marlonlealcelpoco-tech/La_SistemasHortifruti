@@ -1,0 +1,1 @@
+Financeiro migration final cleanup commit: 9d6e524c372dbf52dd247d5286cd1b29872cca97
