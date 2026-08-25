@@ -1,3 +1,4 @@
+# CI trigger: fornecedor functional test
 name: Backend CI
 
 on:
