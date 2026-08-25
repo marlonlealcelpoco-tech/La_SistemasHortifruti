@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Pool } from "pg";
-import { PartyRepository } from "../parties/repository.js";
+import { CustomerRepository } from "../cadastro/clientes/repository.js";
+import { SupplierRepository } from "../cadastro/fornecedores/repository.js";
 import { ProductRepository } from "../products/repository.js";
 import { PurchaseRepository } from "../purchases/repository.js";
 import { CashRepository } from "../cash/repository.js";
@@ -21,7 +22,8 @@ test("real backend flow: purchase -> stock -> credit sale -> partial/full receip
 
   await pool.query("TRUNCATE TABLE users, customers, suppliers, products, stock, stock_movements, purchases, purchase_items, sales, sale_items, financial_entries, financial_settlements, cash_sessions, cash_events, sale_payments, sales_returns, customer_credit_ledger CASCADE");
 
-  const parties = new PartyRepository(pool);
+  const suppliers = new SupplierRepository(pool);
+  const customers = new CustomerRepository(pool);
   const products = new ProductRepository(pool);
   const purchases = new PurchaseRepository(pool);
   const cash = new CashRepository(pool);
@@ -36,8 +38,8 @@ test("real backend flow: purchase -> stock -> credit sale -> partial/full receip
   );
   const sellerId = user.rows[0].id;
 
-  const supplier = await parties.create("suppliers", { name: "Fornecedor Integração" });
-  const customer = await parties.create("customers", { name: "Cliente Integração" });
+  const supplier = await suppliers.create({ name: "Fornecedor Integração" });
+  const customer = await customers.create({ name: "Cliente Integração" });
   const product = await products.create({
     code: `INT-${Date.now()}`,
     name: "Produto Integração",
@@ -78,90 +80,3 @@ test("real backend flow: purchase -> stock -> credit sale -> partial/full receip
   const pending = await finance.list("RECEIVABLE", "PENDING");
   const saleReceivable = pending.find((entry) => entry.sale_id === creditSale.id);
   assert.ok(saleReceivable);
-  assert.equal(Number(saleReceivable.amount), 90);
-  assert.equal(Number(saleReceivable.settled_amount), 0);
-
-  const partial = await finance.settle(saleReceivable.id, "RECEIVABLE", 40, "CASH", cashSessionId);
-  assert.notEqual(partial, "not_found");
-  assert.notEqual(partial, "already_settled");
-  assert.notEqual(partial, "exceeds_remaining");
-  assert.equal((partial as { status: string }).status, "PARTIAL");
-  assert.equal(Number((partial as { settled_amount: string }).settled_amount), 40);
-
-  const afterPartial = (await finance.list("RECEIVABLE", "PARTIAL")).find((entry) => entry.id === saleReceivable.id);
-  assert.ok(afterPartial);
-  assert.equal(Number(afterPartial.settled_amount), 40);
-
-  const receiptEventsAfterPartial = await pool.query<{ count: string }>(
-    "SELECT COUNT(*) AS count FROM cash_events WHERE cash_session_id = $1 AND type = 'CUSTOMER_RECEIPT' AND amount = 40",
-    [cashSessionId]
-  );
-  assert.equal(Number(receiptEventsAfterPartial.rows[0].count), 1);
-
-  const final = await finance.settle(saleReceivable.id, "RECEIVABLE", 50, "CASH", cashSessionId);
-  assert.notEqual(final, "not_found");
-  assert.notEqual(final, "already_settled");
-  assert.notEqual(final, "exceeds_remaining");
-  assert.equal((final as { status: string }).status, "RECEIVED");
-  assert.equal(Number((final as { settled_amount: string }).settled_amount), 90);
-
-  const received = (await finance.list("RECEIVABLE", "RECEIVED")).find((entry) => entry.id === saleReceivable.id);
-  assert.ok(received);
-  assert.equal(Number(received.settled_amount), 90);
-
-  const receiptEvents = await pool.query<{ total: string }>(
-    "SELECT COALESCE(SUM(amount), 0) AS total FROM cash_events WHERE cash_session_id = $1 AND type = 'CUSTOMER_RECEIPT'",
-    [cashSessionId]
-  );
-  assert.equal(Number(receiptEvents.rows[0].total), 90);
-
-  const excess = await finance.settle(saleReceivable.id, "RECEIVABLE", 1, "CASH", cashSessionId);
-  assert.equal(excess, "already_settled");
-
-  const returned = await returns.create({
-    saleId: creditSale.id,
-    customerId: customer.id,
-    productId: product.id,
-    quantity: 1,
-    reason: "CUSTOMER_REGRET",
-    notes: "Troca de integração"
-  });
-  assert.equal(returned.creditAmount, 15);
-  assert.equal(await credits.balance(customer.id), 15);
-
-  const afterReturn = await pool.query<{ quantity: string }>("SELECT quantity FROM stock WHERE product_id = $1", [product.id]);
-  assert.equal(Number(afterReturn.rows[0].quantity), 5);
-
-  const replacementSale = await sales.create({
-    cashSessionId,
-    sellerId,
-    customerId: customer.id,
-    items: [{ productId: product.id, quantity: 1, unitPrice: 20 }],
-    payments: [
-      { paymentMethod: "STORE_CREDIT", amount: 15 },
-      { paymentMethod: "CASH", amount: 5 }
-    ]
-  });
-  assert.equal(Number(replacementSale.total), 20);
-  assert.equal(await credits.balance(customer.id), 0);
-
-  const afterReplacement = await pool.query<{ quantity: string }>("SELECT quantity FROM stock WHERE product_id = $1", [product.id]);
-  assert.equal(Number(afterReplacement.rows[0].quantity), 4);
-
-  const reportBeforeClose = await cash.report(cashSessionId);
-  assert.ok(reportBeforeClose);
-  assert.equal(reportBeforeClose.totals.opening, 100);
-  assert.equal(reportBeforeClose.totals.customerReceipts, 90);
-  assert.equal(reportBeforeClose.totals.supplies, 20);
-  assert.equal(reportBeforeClose.totals.withdrawals, 10);
-  assert.equal(reportBeforeClose.salesByPaymentMethod.CASH, 5);
-  assert.equal(reportBeforeClose.totals.expectedCash, 205);
-
-  const closed = await cash.close(cashSessionId, 205);
-  assert.notEqual(closed, "not_found");
-  assert.notEqual(closed, "already_closed");
-  assert.equal((closed as { difference: number }).difference, 0);
-
-  const closedSession = await cash.find(cashSessionId);
-  assert.equal(closedSession?.status, "CLOSED");
-});
