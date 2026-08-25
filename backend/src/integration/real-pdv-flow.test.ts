@@ -80,3 +80,4 @@ test("real backend flow: purchase -> stock -> credit sale -> partial/full receip
   const pending = await finance.list("RECEIVABLE", "PENDING");
   const saleReceivable = pending.find((entry) => entry.sale_id === creditSale.id);
   assert.ok(saleReceivable);
+});
