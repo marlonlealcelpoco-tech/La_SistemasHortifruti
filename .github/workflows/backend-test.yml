@@ -1,4 +1,4 @@
-# CI trigger: fornecedor functional test
+# CI trigger: compras migration validation
 name: Backend CI
 
 on:
