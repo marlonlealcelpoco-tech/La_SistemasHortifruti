@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireRoles } from "../auth/authorization.js";
 import { UserRepository } from "../auth/user-repository.js";
 import { PAYMENT_METHODS } from "../sales/repository.js";
-import { parseNfeXml } from "../purchases/xml-parser.js";
+import { parseNfeXml } from "../compras/xml-parser.js";
 import { FinanceRepository, type FinancialType } from "./repository.js";
 
 const entrySchema = z.object({
